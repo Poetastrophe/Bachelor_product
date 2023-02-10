@@ -47,3 +47,8 @@ lhs:
 rhs:
 
 Question: Are there severe costs with assuming binary tree heap representation?
+But of course having a simple array and specifying where the next ones lie will
+fit fine.
+
+Det er ikke et problem så længe jeg bruger arena allocator, https://zig.news/xq/cool-zig-patterns-gotta-alloc-fast-23h
+https://github.com/ziglang/zig/blob/master/lib/std/heap/memory_pool.zig
