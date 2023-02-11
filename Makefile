@@ -1,0 +1,3 @@
+default:
+	zig build test
+

@@ -52,3 +52,11 @@ fit fine.
 
 Det er ikke et problem så længe jeg bruger arena allocator, https://zig.news/xq/cool-zig-patterns-gotta-alloc-fast-23h
 https://github.com/ziglang/zig/blob/master/lib/std/heap/memory_pool.zig
+Forstå forskellen mellem memory pool og arena allocator.
+
+https://keleshev.com/abstract-syntax-tree-an-example-in-c/
+
+## Parsing
+
+Dette er særligt useful hvis jeg gerne vil lave en full on grammar
+https://en.wikipedia.org/wiki/Recursive_descent_parser
