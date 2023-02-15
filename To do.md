@@ -1,3 +1,29 @@
+# To do
+
+[ ] - Implement kripke structure representation
+	Notes:
+	- There needs to be hashmaps State -> int_id, and int_id -> State, the user
+	should be able to name the states.
+	- There needs to be hashmaps Preposition -> int_id and int_id ->
+	Preposition, the user should be able to name prepositions
+	- Internally, states and prepositions are just numbers
+	- The graph will be represented as a arraylist representation
+	[ ] - Make a bimap class, since that is what is needed
+		- fromDomainToCodomain
+		- fromCodomainToDomain
+		no need to make it generic
+	Pipeline will be 
+					method
+[raw text -> lexer -> parser] =	Formula ------> AdequateSetFormula [--->
+
+simplifier ----> ROBDD eventually, maybe? ] but for now make it work with the
+labelling algorithm 
+
+Current progress:
+Lige nu har jeg mange compiler errors, men jeg har gjort det godt, tak gud :)
+
+
+
 # Plan
 
 1. Read about the simple algorithm used to implement the input p, return {x \in M | M,x \implies
