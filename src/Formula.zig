@@ -1,8 +1,9 @@
 const std = @import("std");
 const testing = std.testing;
 const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const expect = std.testing.expect;
-const MemoryPool = std.heap.MemoryPool;
+// const MemoryPool = std.heap.MemoryPool;
 
 //TODO: Then it should be sufficient to take a string of formula and parse it directly
 //into tree of formula
@@ -77,38 +78,38 @@ const AdequateSetFormula = union(enum) {
 
 // TODO: The memory error handling can be made more robust, but right now it will just panic :)
 const AdequateFormulaSimpleFactory = struct {
-    pool: std.heap.MemoryPoolExtra(AdequateSetFormula, .{ .alignment = null, .growable = true }),
+    allocator: Allocator,
     const Self = @This();
     pub fn init(allocator: Allocator) Self {
-        return Self{
-            .pool = MemoryPool(AdequateSetFormula).init(allocator),
+        return  Self{
+            .allocator = allocator,
         };
     }
 
-    pub fn deinit(self: *Self) void {
-        self.pool.deinit();
-    }
+    // pub fn deinit(self: *Self) void {
+    //     self.allocator.deinit();
+    // }
 
     pub fn EXp(self: *Self, formula: *AdequateSetFormula) *AdequateSetFormula {
-        var EX = self.pool.create() catch unreachable;
+        var EX = self.allocator.create(AdequateSetFormula) catch unreachable;
         EX.* = AdequateSetFormula{ .EX = AdequateSetFormula.SingleArg{ .args = [1]*AdequateSetFormula{formula} } };
         return EX;
     }
 
     pub fn ANDp(self: *Self, formula1: *AdequateSetFormula, formula2: *AdequateSetFormula) *AdequateSetFormula {
-        var AND = self.pool.create() catch unreachable;
+        var AND = self.allocator.create(AdequateSetFormula) catch unreachable;
         AND.* = AdequateSetFormula{ .AND = AdequateSetFormula.DoubleArg{ .args = [2]*AdequateSetFormula{ formula1, formula2 } } };
         return AND;
     }
 
     pub fn NOTp(self: *Self, formula: *AdequateSetFormula) *AdequateSetFormula {
-        var NOT = self.pool.create() catch unreachable;
+        var NOT = self.allocator.create(AdequateSetFormula) catch unreachable;
         NOT.* = AdequateSetFormula{ .NOT = AdequateSetFormula.SingleArg{ .args = [1]*AdequateSetFormula{formula} } };
         return NOT;
     }
 
     pub fn copyNode(self: *Self, atomToSave: *Formula) *AdequateSetFormula {
-        var atom = self.pool.create() catch unreachable;
+        var atom = self.allocator.create(AdequateSetFormula) catch unreachable;
         switch (atomToSave.*) {
             .ATOM => {
                 atom.* = AdequateSetFormula{ .ATOM = atomToSave.ATOM };
@@ -239,8 +240,10 @@ test "Make simple adequate tree from non-adequate tree" {
     var atom2 = Formula{ .ATOM = 2 };
     root_unpolished.OR.args[0] = &atom1;
     root_unpolished.OR.args[1] = &atom2;
-    var fac = AdequateFormulaSimpleFactory.init(std.testing.allocator);
-    defer fac.deinit();
+    var AAllocator = ArenaAllocator.init(std.testing.allocator);
+    defer AAllocator.deinit();
+    var fac = AdequateFormulaSimpleFactory.init(AAllocator.allocator());
+    // defer fac.deinit();
     const formula = AdequateFormulaGenerator.generate(&root_unpolished, &fac);
     // try expect(formula.root.NOT == AdequateSetFormula.NOT)
     std.debug.print("\nany argument ====================:{any}\n", .{formula.*});
@@ -257,8 +260,9 @@ test "Make  adequate tree from non-adequate tree" {
     var AX = Formula{ .AX = Formula.SingleArg{ .args = [1]*Formula{&atom2} } };
     root_unpolished.OR.args[0] = &atom1;
     root_unpolished.OR.args[1] = &AX;
-    var fac = AdequateFormulaSimpleFactory.init(std.testing.allocator);
-    defer fac.deinit();
+    var AAllocator = ArenaAllocator.init(std.testing.allocator);
+    defer AAllocator.deinit();
+    var fac = AdequateFormulaSimpleFactory.init(AAllocator.allocator());
     const formula = AdequateFormulaGenerator.generate(&root_unpolished, &fac);
     // try expect(formula.root.NOT == AdequateSetFormula.NOT)
     std.debug.print("\nany argument ====================:{any}\n", .{formula.*});
