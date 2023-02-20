@@ -1,6 +1,8 @@
 const Formula = @import("./Formula.zig");
 const AdequateSetFormula = Formula.AdequateSetFormula;
 const std = @import("std");
+const testing = std.testing;
+const expect = testing.expect;
 const sort = std.sort;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
@@ -44,8 +46,8 @@ const Graph = struct {
             return struct {
                 .id = state_id,
                 .atoms = ArrayList(u64).init(allocator),
-                .outgoing_edges = ArrayList(*State).init(allocator),
-                .incoming_edges = ArrayList(*State).init(allocator),
+                .outgoing_edges = ArrayList(*State).init(allocator) catch unreachable,
+                .incoming_edges = ArrayList(*State).init(allocator) catch unreachable,
             };
         }
     };
@@ -58,7 +60,7 @@ const Graph = struct {
     // Cannot fail other than memory error
     // Cannot fail if identifier is already present
     pub fn add_state(self: *Self, id: u64) *State {
-        try self.graph.append(self.State.init(id, self.allocator)) catch unreachable;
+        try self.graph.append(State.init(id, self.allocator)) catch unreachable;
         return self.graph.items[self.graph.items.len - 1];
     }
 
@@ -197,7 +199,6 @@ const Graph = struct {
 const Set = struct {
     const Self = @This();
     arr: ArrayList(u64),
-    allocator: Allocator,
 
     pub fn initEmptySet(allocator: Allocator) Self {
         return Self{
@@ -209,8 +210,8 @@ const Set = struct {
     // Can logically fail if list is not sorted
     // Can logically fail if list contains duplicates
     pub fn initWithSortedList(list: []u64, allocator: Allocator) Self {
-        var result = Self.init(allocator);
-        result.arr.appendSlice(list);
+        var result = Self.initEmptySet(allocator);
+        _ = result.arr.appendSlice(list) catch unreachable;
         return result;
     }
 
@@ -218,37 +219,38 @@ const Set = struct {
         self.arr.deinit();
     }
 
-    pub fn setUnion(self: *Self, other: *Self, allocator: Allocator) Self {
+    pub fn setUnion(self: Self, other: Self, allocator: Allocator) Self {
         var i_1: usize = 0;
         var i_2: usize = 0;
         var result = Self.initEmptySet(allocator);
 
         while (i_1 < self.arr.items.len and i_2 < other.arr.items.len) {
             if (self.arr.items[i_1] < other.arr.items[i_2]) {
-                result.arr.append(self.arr.items[i_1]);
+                result.arr.append(self.arr.items[i_1]) catch unreachable;
                 i_1 += 1;
             } else if (self.arr.items[i_1] == other.arr.items[i_2]) {
-                result.arr.append(self.arr.items[i_1]);
+                result.arr.append(self.arr.items[i_1]) catch unreachable;
                 i_1 += 1;
                 i_2 += 1;
             } else {
-                result.arr.append(self.arr.items[i_2]);
+                result.arr.append(other.arr.items[i_2]) catch unreachable;
+                i_2 += 1;
             }
         }
-        result.arr.appendSlice(self.arr.items[i_1..]);
-        result.arr.appendSlice(other.arr.items[i_2..]);
+        result.arr.appendSlice(self.arr.items[i_1..]) catch unreachable;
+        result.arr.appendSlice(other.arr.items[i_2..]) catch unreachable;
 
         return result;
     }
 
-    pub fn setDifference(self: *Self, other: *Self, allocator: Allocator) Self {
+    pub fn setDifference(self: Self, other: Self, allocator: Allocator) Self {
         var i_1: usize = 0;
         var i_2: usize = 0;
         var result = Self.initEmptySet(allocator);
 
         while (i_1 < self.arr.items.len and i_2 < other.arr.items.len) {
             if (self.arr.items[i_1] < other.arr.items[i_2]) {
-                result.arr.append(self.arr.items[i_1]);
+                result.arr.append(self.arr.items[i_1]) catch unreachable;
                 i_1 += 1;
             } else if (self.arr.items[i_1] == other.arr.items[i_2]) {
                 i_1 += 1;
@@ -257,8 +259,91 @@ const Set = struct {
                 i_2 += 1;
             }
         }
-        result.arr.appendSlice(self.arr.items[i_1..]);
+        result.arr.appendSlice(self.arr.items[i_1..]) catch unreachable;
 
         return result;
     }
 };
+
+test "Set union basic" {
+    var arr = [_]u64{ 1, 2, 3, 4, 7, 9 };
+    var arr2 = [_]u64{ 5, 6, 8 };
+
+    var allocator = testing.allocator;
+    var S1 = Set.initWithSortedList(arr[0..], allocator);
+    defer S1.deinit();
+    var S2 = Set.initWithSortedList(arr2[0..], allocator);
+    defer S2.deinit();
+    // std.debug.print("initialized 2 variables", .{});
+    var S3 = Set.setUnion(S1, S2, allocator);
+    defer S3.deinit();
+    // std.debug.print("initialized variables", .{});
+    // std.debug.print("\n hmm:{any} \n", .{S3.arr.items});
+    var i: u64 = 0;
+    while (i < 9) : (i += 1) {
+        try testing.expect(S3.arr.items[i] == i + 1);
+    }
+}
+
+test "Set difference basic" {
+    var arr = [_]u64{ 1, 2, 3, 4, 7, 9 };
+    var arr2 = [_]u64{ 1, 4, 9, 10 };
+
+    var allocator = testing.allocator;
+    var S1 = Set.initWithSortedList(arr[0..], allocator);
+    defer S1.deinit();
+    var S2 = Set.initWithSortedList(arr2[0..], allocator);
+    defer S2.deinit();
+    // std.debug.print("initialized 2 variables", .{});
+    var S3 = Set.setDifference(S1, S2, allocator);
+    defer S3.deinit();
+    // std.debug.print("initialized variables", .{});
+    // std.debug.print("\n hmm:{any} \n", .{S3.arr.items});
+    var expected_res = [_]u64{ 2, 3, 7 };
+    var i: u64 = 0;
+    while (i < 3) : (i += 1) {
+        try testing.expect(S3.arr.items[i] == expected_res[i]);
+    }
+}
+
+test "Graph basic" {
+
+    // Draws the graph
+    //A -> B<-D
+    //  -> C -^
+
+    //A = 0
+    //B = 1
+    //C = 2
+    //D = 3
+    var G = Graph.init(testing.allocator);
+
+    var A = G.add_state(0);
+    var B = G.add_state(1);
+    // var C = G.add_state(2);
+    // var D = G.add_state(3);
+
+    G.add_connection(A, B);
+    // G.add_connection(A, C);
+    // G.add_connection(C, D);
+    // G.add_connection(D, B);
+    // try expect(A.outgoing_edges.items.len == 2);
+    // try expect(A.incoming_edges.items.len == 0);
+
+    // try expect(B.outgoing_edges.items.len == 0);
+    // try expect(B.incoming_edges.items.len == 2);
+
+    // try expect(C.outgoing_edges.items.len == 1);
+    // try expect(C.incoming_edges.items.len == 1);
+
+    // try expect(D.outgoing_edges.items.len == 1);
+    // try expect(D.incoming_edges.items.len == 1);
+
+    // pub fn add_state(self: *Self, id: u64) *State {
+
+    // pub fn find_state(self: *Self, id: u64) *State {
+
+    // pub fn add_atoms_to_state(state: *State, atoms: []u64) void {
+
+    // pub fn add_connection(from: *State, to: *State) void {
+}
