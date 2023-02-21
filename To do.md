@@ -1,26 +1,29 @@
 # Todo
 [ ] - Implement kripke structure
-	[ ] - Graph
+	[X] - Graph
 	The graph will have outgoing and incoming edges - might in reality only need incoming edges, but hey let's see
 	[X] - Set
 	A simple set datastructure, due to the uncertain natura that I might
 	need to modify the graph, I cannot assume a linear dense mapping.
 	If I want to do a linear dense mapping optimization, then I might want
 	to make sure each graph has its own bimap of atoms and bimap of States.
+	Initially there will be no bimap
 	[ ] - SAT solver
 	The sat solver will get an allocator that holds its calculations and an
 	allocator which holds the result of the calculation. It returns an
 	arraylist. In retrospect I wish I did not make a Set struct and just
 	made it all arrays with the criteria that they have to be sorted, I have
 	to do a lot of unpacking and repacking now.
-[ ] - User friendliness and user testing
-	[ ] - Make it able to read txt files with specification for states,
+		[ ] - Make it able to read txt files with specification for states,
 	edges and atoms
 	[ ] - Run formulas interactively
 		[ ] - First iteration, make unambigous prefix notation
 		AX(EX(AND(IMPLIES(...))))
-		[ ] - Second iteration, make proper logic notation for user
+			[X] - Make zig able to parse string into adequate formula
+			[ ] - make it run interactively
+		Second iteration, make proper logic notation for user
 		friendliness.
+[ ] - User friendliness and user testing
 	[ ] - Add edges interactively
 	[ ] - Produce graphviz dot format files that can be made into graphs
 		Can us below interactive link for it

@@ -10,11 +10,12 @@ const expect = std.testing.expect;
 // I should check backus naur form of the formula before continuing.
 // I will after the construction of the AST, I will modify the AST to have the adequate set
 
-const Formula = union(enum) {
-    const SingleArg = struct {
+pub const Formula = union(enum) {
+    const Self = @This();
+    pub const SingleArg = struct {
         args: [1]*Formula,
     };
-    const DoubleArg = struct {
+    pub const DoubleArg = struct {
         args: [2]*Formula,
     };
     AX: SingleArg, // AX => [] in CTL
@@ -26,6 +27,59 @@ const Formula = union(enum) {
     ATOM: u64,
     TRUE,
     FALSE,
+    pub fn printPreOrderTree(self: *Self) void {
+        self.preOrderTreeHelper(0);
+    }
+
+    fn preOrderTreeHelper(self: *Self, depth: u64) void {
+        printSpaces(depth);
+        switch (self.*) {
+            .AX => {
+                std.debug.print("AX\n", .{});
+                preOrderTreeHelper(self.AX.args[0], depth + 1);
+            },
+
+            .EX => {
+                std.debug.print("EX\n", .{});
+                preOrderTreeHelper(self.EX.args[0], depth + 1);
+            },
+            .OR => {
+                std.debug.print("OR\n", .{});
+                preOrderTreeHelper(self.OR.args[0], depth + 1);
+                preOrderTreeHelper(self.OR.args[1], depth + 1);
+            },
+
+            .AND => {
+                std.debug.print("AND\n", .{});
+                preOrderTreeHelper(self.AND.args[0], depth + 1);
+                preOrderTreeHelper(self.AND.args[1], depth + 1);
+            },
+            .NOT => {
+                std.debug.print("NOT\n", .{});
+                preOrderTreeHelper(self.NOT.args[0], depth + 1);
+            },
+            .IMPLIES => {
+                std.debug.print("IMPLIES\n", .{});
+                preOrderTreeHelper(self.IMPLIES.args[0], depth + 1);
+                preOrderTreeHelper(self.IMPLIES.args[1], depth + 1);
+            },
+            .ATOM => {
+                std.debug.print("ATOM({})\n", .{self.ATOM});
+            },
+            .FALSE => {
+                std.debug.print("FALSE\n", .{});
+            },
+            .TRUE => {
+                std.debug.print("TRUE\n", .{});
+            },
+        }
+    }
+    fn printSpaces(spaces: u64) void {
+        var i: u64 = 0;
+        while (i < spaces) : (i += 1) {
+            std.debug.print("  ", .{});
+        }
+    }
 };
 
 const AdequateSetFormula = union(enum) {
@@ -71,17 +125,17 @@ const AdequateSetFormula = union(enum) {
     fn printSpaces(spaces: u64) void {
         var i: u64 = 0;
         while (i < spaces) : (i += 1) {
-            std.debug.print(" ", .{});
+            std.debug.print("  ", .{});
         }
     }
 };
 
 // TODO: The memory error handling can be made more robust, but right now it will just panic :)
-const AdequateFormulaSimpleFactory = struct {
+pub const AdequateFormulaSimpleFactory = struct {
     allocator: Allocator,
     const Self = @This();
     pub fn init(allocator: Allocator) Self {
-        return  Self{
+        return Self{
             .allocator = allocator,
         };
     }
@@ -122,7 +176,7 @@ const AdequateFormulaSimpleFactory = struct {
         return atom;
     }
 };
-const AdequateFormulaGenerator = struct {
+pub const AdequateFormulaGenerator = struct {
     pub fn generate(raw_formula: *Formula, factory: *AdequateFormulaSimpleFactory) *AdequateSetFormula {
         return recursiveHelper(raw_formula, factory);
     }
