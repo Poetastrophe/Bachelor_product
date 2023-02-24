@@ -82,7 +82,7 @@ pub const Formula = union(enum) {
     }
 };
 
-const AdequateSetFormula = union(enum) {
+pub const AdequateSetFormula = union(enum) {
     const Self = @This();
     const SingleArg = struct {
         args: [1]*Self,
