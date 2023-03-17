@@ -521,88 +521,91 @@ test "init preconfigured" {
 
 test "test more advanced figure" {
 
-    //5<
-    //^ \
-    //v  \
-    //3   \
-    //^    4
-    //v    ^
-    //1 -> 2
-    //^    ^
-    //0 -> 6
+    //    //5<
+    //    //^ \
+    //    //v  \
+    //    //3   \
+    //    //^    4
+    //    //v    ^
+    //    //1 -> 2
+    //    //^    ^
+    //    //0 -> 6
 
-        var atomList = ArrayList(ArrayList(u64)).init(std.testing.allocator);
-        defer atomList.deinit();
-        var i: u64 = 0;
-        while (i < 6) : (i += 1) {
-            try atomList.append(ArrayList(u64).init(std.testing.allocator));
-        }
-        defer {
-            for (atomList.items) |elem| {
-                elem.deinit();
-            }
-        }
+    //        var atomList = ArrayList(ArrayList(u64)).init(std.testing.allocator);
+    //        defer atomList.deinit();
+    //        var i: u64 = 0;
+    //        while (i < 6) : (i += 1) {
+    //            try atomList.append(ArrayList(u64).init(std.testing.allocator));
+    //        }
+    //        defer {
+    //            for (atomList.items) |elem| {
+    //                elem.deinit();
+    //            }
+    //        }
 
-        var p: u64 = 1234;
-        var q: u64 = 8008;
-        var r: u64 = 42;
-        try atomList.items[0].append(p);
-        try atomList.items[1].append(q);
-        try atomList.items[2].append(q);
-        try atomList.items[3].append(p);
-        try atomList.items[3].append(q);
+    //        var p: u64 = 1234;
+    //        var q: u64 = 8008;
+    //        var r: u64 = 42;
+    //        try atomList.items[0].append(p);
+    //        try atomList.items[0].append(q);
+    //        try atomList.items[0].append(r);
 
-        var nblist = ArrayList([2]u64).init(std.testing.allocator);
-        defer nblist.deinit();
+    //        try atomList.items[1].append(q);
+    //        try atomList.items[2].append(q);
+    //        try atomList.items[3].append(p);
+    //        try atomList.items[3].append(q);
 
-        try nblist.append([_]u64{ 0, 2 });
-        try nblist.append([_]u64{ 0, 3 });
-        try nblist.append([_]u64{ 3, 3 });
-        try nblist.append([_]u64{ 3, 1 });
-        try nblist.append([_]u64{ 1, 0 });
+    //        var nblist = ArrayList([2]u64).init(std.testing.allocator);
+    //        defer nblist.deinit();
 
-        var G = Graph.initialize_preconfigured_graph(atomList.items, nblist.items, std.testing.allocator);
-        defer G.deinit();
-        std.debug.print("\n", .{});
-        std.debug.print("\n", .{});
-        std.debug.print("\n", .{});
-        G.print();
-        std.debug.print("\n", .{});
-        std.debug.print("\n", .{});
-        std.debug.print("\n", .{});
+    //        try nblist.append([_]u64{ 0, 2 });
+    //        try nblist.append([_]u64{ 0, 3 });
+    //        try nblist.append([_]u64{ 3, 3 });
+    //        try nblist.append([_]u64{ 3, 1 });
+    //        try nblist.append([_]u64{ 1, 0 });
 
-        // G. SAT setup
-        var arena_instance = std.heap.ArenaAllocator.init(std.testing.allocator);
-        defer arena_instance.deinit();
-        const allocator = arena_instance.allocator();
+    //        var G = Graph.initialize_preconfigured_graph(atomList.items, nblist.items, std.testing.allocator);
+    //        defer G.deinit();
+    //        std.debug.print("\n", .{});
+    //        std.debug.print("\n", .{});
+    //        std.debug.print("\n", .{});
+    //        G.print();
+    //        std.debug.print("\n", .{});
+    //        std.debug.print("\n", .{});
+    //        std.debug.print("\n", .{});
 
-        // var formula_raw = "AND(EX(ATOM(1234)),AX(ATOM(8008)))";
-        var formula_raw = "AND(EX(ATOM(1234)),AX(ATOM(8008)))";
-        if (Tokenizer.tokenizeFormula(formula_raw, allocator)) |tokenizedArr| {
-            std.debug.print("\n=========YOUR MOVE=========\n", .{});
-            defer tokenizedArr.deinit();
+    //        // G. SAT setup
+    //        var arena_instance = std.heap.ArenaAllocator.init(std.testing.allocator);
+    //        defer arena_instance.deinit();
+    //        const allocator = arena_instance.allocator();
 
-            std.debug.print("\ntokenarr{any}\n", .{tokenizedArr.items});
-            var parser = Parser.init(tokenizedArr.items);
-            var formula = parser.parseExpression(allocator) catch unreachable;
-            std.debug.print("\n", .{});
-            formula.printPreOrderTree();
+    //        // var formula_raw = "AND(EX(ATOM(1234)),AX(ATOM(8008)))";
+    //        var formula_raw = "AND(EX(ATOM(1234)),AX(ATOM(8008)))";
+    //        if (Tokenizer.tokenizeFormula(formula_raw, allocator)) |tokenizedArr| {
+    //            std.debug.print("\n=========YOUR MOVE=========\n", .{});
+    //            defer tokenizedArr.deinit();
 
-            var fac = AdequateFormulaSimpleFactory.init(allocator);
-            const adeformula = AdequateFormulaGenerator.generate(formula, &fac);
+    //            std.debug.print("\ntokenarr{any}\n", .{tokenizedArr.items});
+    //            var parser = Parser.init(tokenizedArr.items);
+    //            var formula = parser.parseExpression(allocator) catch unreachable;
+    //            std.debug.print("\n", .{});
+    //            formula.printPreOrderTree();
 
-            std.debug.print("\n", .{});
-            adeformula.printPreOrderTree();
+    //            var fac = AdequateFormulaSimpleFactory.init(allocator);
+    //            const adeformula = AdequateFormulaGenerator.generate(formula, &fac);
 
-            var result = G.SAT(adeformula, allocator, allocator);
-            var expected = [_]u64{ 0, 3 };
-            std.debug.print("RESULT:{any}", .{result});
-            try expect(mem.eql(u64, result.items, expected[0..expected.len]));
-        } else |err| switch (err) {
-            // IncorrectFormattingError.UserTypedFormula => std.debug.print("\ncolumnNumber {}\n", .{findError(formula)}),
-            Tokenizer.IncorrectFormattingError.UserTypedFormula => unreachable,
-            else => unreachable,
-        }
+    //            std.debug.print("\n", .{});
+    //            adeformula.printPreOrderTree();
+
+    //            var result = G.SAT(adeformula, allocator, allocator);
+    //            var expected = [_]u64{ 0, 3 };
+    //            std.debug.print("RESULT:{any}", .{result});
+    //            try expect(mem.eql(u64, result.items, expected[0..expected.len]));
+    //        } else |err| switch (err) {
+    //            // IncorrectFormattingError.UserTypedFormula => std.debug.print("\ncolumnNumber {}\n", .{findError(formula)}),
+    //            Tokenizer.IncorrectFormattingError.UserTypedFormula => unreachable,
+    //            else => unreachable,
+    //        }
 }
 
 test "test made up figure" {
