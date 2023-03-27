@@ -1,0 +1,171 @@
+//hands, discard pile, firework can be used to generate a set for the deck.
+State { //this will be 125 bits, 
+	hands: list of set of cards
+}
+State { //this will be 300 bits, with a lot of information that could have been
+deduced
+	all 60 cards
+}
+When initializing the knowledge of an agent, it will look at the other players'
+hands, it will have some certain knowledge (specified information about its
+hand, the discard pile, the hands of the others).
+
+[hold] - how  will I represent islands?
+Each player will have a set of islands.
+Player {
+	islands: set of Island
+}
+
+Island {
+	set of state //About 125bits+ per element
+}
+
+we know that islands are disjoint for a given player, so we cannot count an
+island multiple times for a specific player. BUT we can (and will) count it multiple times
+for multiple players
+
+so more pragmatically
+
+StateArr {
+	allStates :ArrayList(State)
+}
+
+Island { 
+	set of indices into StateArr //potentially 32 bits per element
+}
+
+problem is of course when updating StateArr, i.e. removing all states where
+something does not hold anymore.
+
+Another iteration could be
+State {
+	Set of hands	
+	SeenBy: bitArr
+}
+By paying 5 more bits, we can guarantee that a given state tells whether it is
+seen by a player or not.
+
+Gives= trivial updates
+Lacks= Islandtermonology...
+
+Why do I need islands: Islands are equivalence classes, so I know that if there
+is only 1 element in an island, and it corrosponds to what it is seing, then it
+will be the right choice.
+
+The easiest way of representing this is to represent it with redundancy, and
+keep the list
+
+Player {
+Set of Island
+}
+
+Island{
+Set of states
+}
+
+
+State {
+	Set of hands	
+	SeenBy: bitArr
+}
+
+[hold] - Can I use union-find datastructure on this?
+This means that for each State, I can have a union-find datastructure for each
+player, where I can ask whether two states are in the same equivalence class.
+Given that each player might have this state connected to some other
+equivalence.
+
+ 
+
+Hmm. I think it could be neat to use this. So now a state can be extended with
+
+State { //Now size is easily 125+5*64+5*64 = 765 bits
+	Set of hands	
+	child: list of *State
+	parent: list of *State
+}
+This has the added benefit that if I want to search through an island containing
+a state S0 for player P3, then I would do a DFS on the state on its connection
+child[3-1] and parent[3-1]. And similarly if I want to see if the connection
+branches out to some other state and see other types of reachability, I could
+just make use of the a different index.
+
+Question: Do I ever want to do a find query on two states?
+
+Realization: There will never be a moment where I need to partition the states
+anew, but there will be edge deletions... Or more correctly, there will be state
+deletions.
+
+Question: will there ever be just edge-deletion. When giving some information.
+
+[ ] - How good is a simple flat model?
+So a player has
+Player {
+	Set of States
+}
+
+State { //125+1
+	set of hands
+	beginning of equivalence: bit 
+}
+
+And of course each can be sorted on their intervals
+but this way I only spent one more bit to know which is equivalent. Furthermore
+it is trivial to go through the list.
+The bit could eventually be replaced by
+State { //125+32
+	set of hands
+	next_island: 32 bit integer 
+}
+so that one can quickly jump to the next equivalence relation.
+
+I imagine that in a lot of queries will be of the kind "player x has a red card"
+and then it will search for EVERY SINGLE STATE removing all the ones where
+player x has a red card.
+
+Might even be beneficial to keep the list of states as a linked list, due to the
+fact that we are mostly just removing.
+
+but a lot of it also depends on the strategic queries. Like.
+Should I play this card?
+
+[ ] - check out strategy that can be done in hanabi, and what players should
+know in order to play. Because this more than anything else, determines what
+queries on the datastructure is needed to be efficient.
+
+[hold] - check out the dynamic tree solution from algo 3, are the algorithms run on
+the islands sensible for this usecase? could be cool and easy points
+
+// What have people done on the subject?
+//https://www.academia.edu/69392314/Solving_Hanabi_Estimating_Hands_by_Opponents_Actions_in_Cooperative_Game_with_Incomplete_Information
+// https://arxiv.org/abs/1902.00506
+
+
+
+//But of course, you don't have to generate all states beforehand...
+// Just generate the ones possible from the agent's POV and then you have to
+// figure out what the other POVs are, which are necessarily greater to the
+// original POV due to the fact that it does not know its own cards, and it
+// knows that the other agent does not know its own cards.
+
+// From the 3-wise men example, it seems sufficient to generate 3 pov and then
+// for each pov generate the other agents pov.
+
+
+// 8 and 16 gigabytes of ram gives this many states depending on we represent
+all 60 cards at every turn, or only the known hands/guessed hands
+>>> 8*10**6*8
+64000000
+>>> 8*10**6*8/300
+213333.33333333334
+>>> 8*10**6*8/125
+512000.0
+>>> 16*10**6*8/125
+1024000.0
+>>> 16*10**6*8/300
+426666.6666666667
+>>> 16000*16000
+256000000
+>>> 16*10**6*8/125
+1024000.0
+// So I shouldnt exceed 1 million states...

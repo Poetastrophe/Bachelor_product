@@ -1,4 +1,59 @@
 # Todo
+[ ] - meeting with Nina
+[ ] - I feel like I recently began to understand how to use epistemic dynamic logic
+for real. So if you want to give someone a first book on the topic, I suggest
+Huth, Ryan and not 100 lightbulbs.
+I was much in doubt whether I even could model it, the main reason being that
+I was very overwhelmed by the notation of 100 lightbulbs.
+
+[ ] - I think I can begin to make some interesting code soon, but I have not written
+anything new since we last met, due to finding it hard to find a problem, and
+being very much in doubt how to engineer the logic to suit the domain.
+
+[ ] - Let's look at the example of the three wise men.
+
+Is it correctly undestood that each island for a player, represents possibilites
+depending on their knowledge?
+
+It seems infeasible to me to use a strict logical language for hanabi, but I can
+still use the principles of kripke structures on a more general state, like the
+set of cards and the hands. Right?
+
+I need to design the model sanely, without it being too much of a combinatorial
+explosion.
+For instance for 5 players, the 5th player knows all the other players hands nad
+we get
+	sage: 44*43*42*41 
+		3258024 
+combinations for their own hand (upper bound).
+Then for each such hand, we have a set of deck, set of hand, set of discard
+pile.
+
+This would be how I model a state.
+
+[ ] - Strategy
+So when I have modelled knowledge and make the agents deduce knowledge, my next
+step is to make a strategy for actually playing the game.
+
+[x] - better upper bound for number of hands in the beginning
+
+With no assumption about the first hand, there are this many possibilities.
+>>> superarr = []
+>>> for i in range(5):
+...     for elem in arr:
+...             superarr.append(elem+10*i)
+>>> megaarr = list(more_itertools.distinct_combinations(superarr,4))
+>>> len(megaarr)
+18480
+>>> len(megaarr)**2
+341510400
+
+[ ] - even better upper bound than the 18480, because there is also the
+knowledge aspect.
+	[ ] - simulate a couple of first rounds and see how many hands there is
+	generated.
+
+
 
 [ ] - Get direction on the project
 	[x] - try to read about model-checking and program verification
@@ -6,9 +61,94 @@
 		to read more on monday about hanabi.	
 	[ ] - Play hanabi and try to get a list of some simple strategies that
 	work well (see wikipedia)
+		I checked out hanabi, simple thoughts:
+		You can give two types of information to a player. number of
+		color/value and at what position these are found.
+		Q: Can you play a card without knowing what it is in hanabi?
+		A: yes men hvis den ikke bidrager til noget så mister man en
+		fuse.
+		Q: Is it feasible to generate every world. Where a world is the
+		following:
+		deck: set of cards
+		h1: set of cards
+		h2: set of cards
+		.
+		.
+		.
+		hn: set of cards
+		discard pile: set of cards
+
+		When should you update your model:
+		The agent whose card is getting announced should update its
+		model accordingly
+
+		Everyone should update their model when a card is discarded.
+
+		There can also be additional information, for instance, if there
+		is a logical order to how people discard for instance. Lets say
+		if a person has two ones, then if she discards the card instead
+		of playing it, it would stand to reason that that person has
+		another 1. If this was an agreed approach.
+		I should find a better example but you get it.
+
+		Better example: if someone does not continue a given firework,
+		but from another players perspective is able to do so, then we
+		know that that person does not know. So if this is
+		an agreed strategy, then we can deduce that  in configuration:
+		g r y w
+		g r y
+		  r
+		that the player does not know that they have a blue1, or a
+		yellow3 etc.
+
+		How would I generate it:
+		Look at your teammates hands and discard pile, as well as what
+		you know about your own hand, and remove those
+		cards from the deck. Then for each possible combination make a
+		hand-deck relation as an internal model.
+
+
+		Hvis man har 5 spillere, så kan man godt gå kombinatorisk til
+		værks hvis man kun betragter sin egen hånd og ikke dækket, som
+		vist forneden
+
+		Konfiguration for 5 spillere:
+		hånd
+		====
+		sage: 44*43*42*41 
+		3258024 
+		deck
+		====
+		sage: factorial(40) 
+		815915283247897734345611269596115894272000000000 
+
+		konfiguration for 2 spillere:
+		hånd
+		====
+		sage: 55*54*53*52*51 
+		417451320 
+		deck
+		====
+		sage: factorial(50) 
+		30414093201713378043612608166064768844377641568960512000000000000 
+		
+		
+		Så statespacet er cirka 100 gange større hvis det er to spillere
+		heheeeeeeeee.
+		 men vi har ikke taget højde for distinguishability.
+
+
+
+Strategy: Using natural deduction, check if your teammate knows that he can
+further any of the rows.
+
 	[ ] - Read chapter 5 in about modal logic and agents. Take lots of notes
 	so you can make sure you understand it and can nag Nina if you get
 	depressed about it again.
+		Ideas how to model it
+		since we are dealing with equivalence classes, maybe we can have
+		a disjoint set data structure, where each agent has a set of
+		nodes that views as equivalent?
 	[ ] - How would you model it without any code?
 	[ ] - Simple implementation of EDL agents (EDL-solution)
 	[ ] - Benchmark against a simple implementation of hanabi
@@ -58,6 +198,9 @@
 
 
 
+# Questions
+Q: How do I model the three wise men problem as a graph, and do computations on
+the graph? Is it even possible? Check out one hundred lightbulbs.
 
 # Backlog
 
