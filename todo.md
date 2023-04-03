@@ -1,16 +1,41 @@
+
 # Todo
-[ ] - meeting with Nina
-[ ] - I feel like I recently began to understand how to use epistemic dynamic logic
+[ ] - Implement hanabi game as a TUI and just using logical agents
+	[ ] - Interface
+	I think it would be cool if the players used sockets and respected the
+	interface, that way I know that it could not go wrong.
+	WONT DO: sockets, networking is a nightmare and not interesting.
+		hint_color(color, player) list of indices
+		hint_value(value, player) list of indices
+		discard(index) void!IllegalMove IndexOutOfBounds
+		play(index) void!IndexOutOfBounds
+		get_state() //returns whose turn it is, what are discarded, what
+		is shown. Or if the game is over.
+	struct{ 
+		Players: list of hands
+		current_player: index
+		deck: list of cards
+		discard_pile: list of cards
+		hanabi_piles: list of cards
+		blue_tokens: count
+		black_tokens: count
+	}
+
+		
+
+
+[x] - meeting with Nina
+[x] - I feel like I recently began to understand how to use epistemic dynamic logic
 for real. So if you want to give someone a first book on the topic, I suggest
 Huth, Ryan and not 100 lightbulbs.
 I was much in doubt whether I even could model it, the main reason being that
 I was very overwhelmed by the notation of 100 lightbulbs.
 
-[ ] - I think I can begin to make some interesting code soon, but I have not written
+[x] - I think I can begin to make some interesting code soon, but I have not written
 anything new since we last met, due to finding it hard to find a problem, and
 being very much in doubt how to engineer the logic to suit the domain.
 
-[ ] - Let's look at the example of the three wise men.
+[x] - Let's look at the example of the three wise men.
 
 Is it correctly undestood that each island for a player, represents possibilites
 depending on their knowledge?
@@ -31,9 +56,10 @@ pile.
 
 This would be how I model a state.
 
-[ ] - Strategy
+[x] - Strategy
 So when I have modelled knowledge and make the agents deduce knowledge, my next
 step is to make a strategy for actually playing the game.
+A: see pseudocode arc
 
 [x] - better upper bound for number of hands in the beginning
 

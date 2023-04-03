@@ -1,3 +1,45 @@
+knowledge and action
+============
+agents should have some different actions, like
+importantToHintAbout(state) // Should tell what is the most important thing to
+hint about. For instance a priority could be given.
+If there is a blue 1 in another players hand, and you have a blue 1. Then you
+can safely discard it. hmm. 
+// In the article they have a goal property, that is they specify which card
+that they want to be known be a player, and does a breadth first search in order
+to find t.
+// OK so if a proiritized goal is to finish the highest valued cards as fast as
+// possible. Unless if there are few 1s or 2s left.
+// So if 2 has a blue 4, then we can say that it is a goal for everyone involved
+// to make it notice it.
+// Then player 3 can see what is the state of player 2, and say hmm. what will
+// remove more states? values or colors?
+
+// Lets just make a tacit assumption that a player does not play a card unless
+he/she is absolutely certain that it will be beneficial.
+// It could also be to eliminate states which are different from what 3 sees.
+...
+// But safety should be a top priority
+
+// Safe possibilities
+// 1. name a fiver card
+// if a 2345iver have been discarded, then it is top priority to mention it so
+that it will not be discarded.
+// If you are able to discard safely, then it is a good action, because it will
+// always give information to the others.
+
+
+hint(property of cards)
+
+
+safeToPlay(card)
+play(card)
+
+safeToDiscard(card)
+discard(card)
+
+
+
 //hands, discard pile, firework can be used to generate a set for the deck.
 State { //this will be 125 bits, 
 	hands: list of set of cards
