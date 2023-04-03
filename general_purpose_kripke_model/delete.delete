@@ -1,0 +1,96 @@
+const std = @import("std");
+const testing = std.testing;
+const Allocator = std.mem.Allocator;
+
+//TODO: Then it should be sufficient to take a string of formula and parse it directly
+//into tree of formula
+// I should check backus naur form of the formula before continuing.
+// I will after the construction of the AST, I will modify the AST to have the adequate set
+
+const Formula = union(enum) {
+    const SingleArg = struct {
+        args: [1]*Formula,
+    };
+    const DoubleArg = struct {
+        args: [2]*Formula,
+    };
+    AX: SingleArg, // AX => [] in CTL
+    EX: SingleArg, // EX => <> in CTL
+    OR: DoubleArg,
+    AND: DoubleArg,
+    NOT: SingleArg,
+    IMPLIES: DoubleArg,
+    ATOM: u64,
+    TRUE,
+    FALSE,
+};
+
+const AdequateSetFormula = union(enum) {
+    const Self = @This();
+    const SingleArg = struct {
+        args: [1]*Self,
+    };
+    const DoubleArg = struct {
+        args: [2]*Self,
+    };
+    EX: SingleArg,
+    AND: DoubleArg,
+    NOT: SingleArg,
+    ATOM: u64,
+    FALSE,
+};
+const AdequateFormulaGenerator = struct {
+    allocator:Allocator,
+    root: AdequateSetFormula*,
+    
+
+}
+
+pub fn test_allocate_two_nodes(allocator: Allocator) !*AdequateSetFormula {
+    var leaf = try allocator.create(AdequateSetFormula);
+    leaf.* = AdequateSetFormula{ .FALSE = {} };
+
+    var top = try allocator.create(AdequateSetFormula);
+    top.* = AdequateSetFormula{ .NOT = AdequateSetFormula.SingleArg{ .args = [1]*AdequateSetFormula{leaf} } };
+    return top;
+}
+
+test "allocate simple arg" {
+    const alloc = std.testing.allocator;
+    var hmm = try test_allocate_two_nodes(alloc);
+    // if (hmm.NOT) {
+    // }
+    switch (hmm.*) {
+        .NOT => try testing.expect(true),
+        else => try testing.expect(false),
+    }
+    switch (hmm.NOT.args[0].*) {
+        .FALSE => try testing.expect(true),
+        else => try testing.expect(false),
+    }
+
+    alloc.destroy(hmm.NOT.args[0]);
+    alloc.destroy(hmm);
+
+    // hmm.NOT.args[0].FALSE
+}
+test "Basic tree" {
+    var hmm = Formula{ .OR = Formula.DoubleArg{ .args = undefined } };
+    var atom1 = Formula{ .ATOM = 1 };
+    var atom2 = Formula{ .ATOM = 2 };
+    hmm.OR.args[0] = &atom1;
+    hmm.OR.args[1] = &atom2;
+    try testing.expect(hmm.OR.args[0].ATOM == 1);
+    try testing.expect(hmm.OR.args[1].ATOM == 2);
+
+    switch (hmm) {
+        Formula.OR => try testing.expect(true),
+        else => try testing.expect(false),
+    }
+
+    // const hehe = AdequateSetFormula.translateFormulaToAdequateSetFormula(hmm, std.testing.allocator);
+    // switch (hehe) {
+    //     .FALSE => try testing.expect(true),
+    //     else => try testing.expect(false),
+    // }
+}

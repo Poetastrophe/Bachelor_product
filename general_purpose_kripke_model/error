@@ -1,0 +1,16 @@
+src\main.zig:44:9: error: value with comptime-only type '@TypeOf(.enum_literal)' depends on runtime control flow
+        switch (raw_formula) {
+        ^~~~~~
+src\main.zig:44:17: note: runtime control flow here
+        switch (raw_formula) {
+                ^~~~~~~~~~~
+referenced by:
+    test.Basic tree: src\main.zig:67:36
+    remaining reference traces hidden; use '-freference-trace' to see all reference traces
+
+error: test...
+error: The following command exited with error code 1:
+C:\Users\Christoffer\chris\bin\zig-windows-x86_64-0.11.0-dev.1622+fc48467a9\zig-windows-x86_64-0.11.0-dev.1622+fc48467a9\zig.exe test C:\Users\Christoffer\chris\Projects\Bachelor\Bachelor_product\src\main.zig --cache-dir C:\Users\Christoffer\chris\Projects\Bachelor\Bachelor_product\zig-cache --global-cache-dir C:\Users\Christoffer\AppData\Local\zig --name test --enable-cache 
+error: the following build command failed with exit code 1:
+C:\Users\Christoffer\chris\Projects\Bachelor\Bachelor_product\zig-cache\o\8083acfb542f18561c521a225981a562\build.exe C:\Users\Christoffer\chris\bin\zig-windows-x86_64-0.11.0-dev.1622+fc48467a9\zig-windows-x86_64-0.11.0-dev.1622+fc48467a9\zig.exe C:\Users\Christoffer\chris\Projects\Bachelor\Bachelor_product C:\Users\Christoffer\chris\Projects\Bachelor\Bachelor_product\zig-cache C:\Users\Christoffer\AppData\Local\zig test
+make: *** [Makefile:2: default] Error 1
