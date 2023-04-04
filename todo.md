@@ -228,6 +228,9 @@ further any of the rows.
 Q: How do I model the three wise men problem as a graph, and do computations on
 the graph? Is it even possible? Check out one hundred lightbulbs.
 
+Q: interesting to look into baltag2002 and see if there is anything that can be
+used.
+
 # Backlog
 
 [ ] - rewrite the code such that it actually handles allocation failure and not just ignores it.
