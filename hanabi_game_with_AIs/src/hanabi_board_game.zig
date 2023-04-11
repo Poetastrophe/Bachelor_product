@@ -11,8 +11,43 @@ const INITIAL_BLACK_TOKENS = 4;
 const NUMBER_HANABI_PILES = 5;
 const DRAW_IF_LESS_THAN_4_PLAYERS = 5;
 const DRAW_IF_MORE_THAN_3_PLAYERS = 4;
-const Color = enum { red, blue, green, yellow, white, unknown };
-const Value = enum { one, two, three, four, five, unknown };
+const Color = enum {
+    red,
+    blue,
+    green,
+    yellow,
+    white,
+    unknown,
+    pub fn writeColor(self: Color, writer: anytype) void {
+        _ = switch (self) {
+            .red => writer.write("Red"),
+            .blue => writer.write("Blue"),
+            .green => writer.write("Green"),
+            .yellow => writer.write("Yellow"),
+            .white => writer.write("White"),
+            .unknown => writer.write("Unknown"),
+        } catch unreachable;
+    }
+};
+const Value = enum {
+    one,
+    two,
+    three,
+    four,
+    five,
+    unknown,
+
+    pub fn writeValue(self: Value, writer: anytype) void {
+        _ = switch (self) {
+            .one => writer.write("One"),
+            .two => writer.write("Two"),
+            .three => writer.write("Three"),
+            .four => writer.write("Four"),
+            .five => writer.write("Five"),
+            .unknown => writer.write("Unknown"),
+        } catch unreachable;
+    }
+};
 const Card = struct {
     const Self = @This();
     color: Color,
@@ -48,6 +83,14 @@ const Player = struct {
     pub fn to_string_no_hints(self: Self, writer: anytype) void {
         for (self.hand.items) |card| {
             card.card.writeCard(writer);
+            _ = writer.write(" ") catch unreachable;
+        }
+    }
+    pub fn to_string(self: Self, writer: anytype) void {
+        for (self.hand.items) |card| {
+            card.card.writeCard(writer);
+            _ = writer.write("|") catch unreachable;
+            card.hints.writeCard(writer);
             _ = writer.write(" ") catch unreachable;
         }
     }
@@ -102,7 +145,7 @@ const CurrentPlayerView = struct {
     }
 };
 
-const Game = struct {
+pub const Game = struct {
     const Self = @This();
     current_player: u64,
     players: ArrayList(Player),
@@ -112,7 +155,7 @@ const Game = struct {
     blue_tokens: u64,
     black_tokens: u64,
     game_is_over: bool,
-    rounds_left: i64,
+    rounds_left: u64,
 
     pub fn init(allocator: Allocator, number_of_players: u3, seed: [32]u8) Self {
         const countarr = [_]u64{ 3, 2, 2, 2, 1 };
@@ -180,10 +223,17 @@ const Game = struct {
             .blue_tokens = INITIAL_BLUE_TOKENS,
             .black_tokens = INITIAL_BLACK_TOKENS,
             .game_is_over = false,
-            .rounds_left = -1,
+            .rounds_left = std.math.maxInt(u64),
         };
     }
 
+    pub fn get_score(self: Self) u64 {
+        var score: u64 = 0;
+        for (self.hanabi_piles) |pile| {
+            score += pile.items.len;
+        }
+        return score;
+    }
     pub fn get_current_player_view(self: Self, allocator: Allocator) CurrentPlayerView {
         return CurrentPlayerView.init(allocator, self);
     }
@@ -194,10 +244,10 @@ const Game = struct {
     }
 
     fn discard(self: *Self, index: u64) void {
-        std.debug.assert(index < self.players[self.current_player].items.len);
+        std.debug.assert(index < self.players.items[self.current_player].hand.items.len);
         std.debug.assert(self.blue_tokens < INITIAL_BLUE_TOKENS);
         std.debug.assert(!self.game_is_over);
-        self.discard_pile.append(self.players[self.current_player].items[index]);
+        _ = self.discard_pile.append(self.players.items[self.current_player].hand.items[index].card) catch unreachable;
         _ = self.draw_card_or_remove_at(index);
         self.blue_tokens += 1;
     }
@@ -205,33 +255,33 @@ const Game = struct {
     fn draw_card_or_remove_at(self: *Self, index: u64) ?CardWithHints {
         var maybe_new_card = self.deck.popOrNull();
         if (maybe_new_card) |new_card| {
-            self.players[self.current_player].items[index] = new_card;
-            return new_card;
+            const new_card_with_hints = CardWithHints{ .card = new_card, .hints = Card{ .color = Color.unknown, .value = Value.unknown } };
+            self.players.items[self.current_player].hand.items[index] = new_card_with_hints;
+            return new_card_with_hints;
         } else {
-            if (self.rounds_left == -1) {
-                self.rounds_left = self.players.len;
+            if (self.rounds_left == std.math.maxInt(u64)) {
+                self.rounds_left = self.players.items.len;
             } else {
                 self.rounds_left -= 1;
             }
             if (self.rounds_left == 0) {
                 self.game_is_over = true;
             }
-            self.players[self.current_player].swap_remove(index);
+            _ = self.players.items[self.current_player].hand.swapRemove(index);
             return null;
         }
     }
 
     fn play(self: *Self, index: u64) void {
-        std.debug.assert(index < self.players[self.current_player].items.len);
-        std.debug.assert(self.blue_tokens < INITIAL_BLUE_TOKENS);
+        std.debug.assert(index < self.players.items[self.current_player].hand.items.len);
         std.debug.assert(!self.game_is_over);
-        var old_card = self.players[self.current_player].items[index];
+        var old_card = self.players.items[self.current_player].hand.items[index];
         _ = self.draw_card_or_remove_at(index);
 
-        var last_index = self.hanabi_piles[@enumToInt(old_card.color)].items.len;
+        var last_index = self.hanabi_piles[@enumToInt(old_card.card.color)].items.len;
 
-        if (last_index == @enumToInt(old_card.value)) {
-            self.hanabi_piles[@enumToInt(old_card.color)].items.append(old_card);
+        if (last_index == @enumToInt(old_card.card.value)) {
+            _ = self.hanabi_piles[@enumToInt(old_card.card.color)].append(old_card.card) catch unreachable;
         } else {
             self.black_tokens -= 1;
             if (self.black_tokens == 0) {
@@ -251,16 +301,16 @@ const Game = struct {
 
         var did_hint = false;
 
-        var hand = self.players.items[player].items;
+        var hand = self.players.items[player].hand;
 
-        for (hand) |_, i| {
-            if (hand[i].color == color) {
-                hand[i].hint.color = color;
+        for (hand.items) |_, i| {
+            if (hand.items[i].card.color == color) {
+                hand.items[i].hints.color = color;
                 did_hint = true;
             }
         }
 
-        std.debug.assert(!did_hint);
+        std.debug.assert(did_hint);
     }
 
     pub fn hint_value(self: *Self, value: Value, player: u64) void {
@@ -273,24 +323,28 @@ const Game = struct {
 
         var did_hint = false;
 
-        var hand = self.players.items[player].items;
+        var hand = self.players.items[player].hand;
 
-        for (hand) |_, i| {
-            if (hand[i].value == value) {
-                hand[i].hint.value = value;
+        for (hand.items) |_, i| {
+            if (hand.items[i].card.value == value) {
+                hand.items[i].hints.value = value;
                 did_hint = true;
             }
         }
 
-        std.debug.assert(!did_hint);
+        std.debug.assert(did_hint);
     }
 
     pub fn to_string(self: Self, writer: anytype) void {
         var i: u64 = 0;
-        _ = writer.print("game is over:{},rounds left:{},current player:{}\n", .{ self.game_is_over, self.rounds_left, self.current_player }) catch unreachable;
+        if (self.rounds_left != std.math.maxInt(u64)) {
+            _ = writer.print("game is over:{},rounds left:{},current player:{}\n", .{ self.game_is_over, self.rounds_left, self.current_player }) catch unreachable;
+        } else {
+            _ = writer.print("game is over:{},current player index:{}\n", .{ self.game_is_over, self.current_player }) catch unreachable;
+        }
         while (i < self.players.items.len) : (i += 1) {
             _ = writer.print("{}:", .{i}) catch unreachable;
-            self.players.items[i].to_string_no_hints(writer);
+            self.players.items[i].to_string(writer);
             _ = writer.write("\n") catch unreachable;
         }
         for (self.hanabi_piles) |pile| {
@@ -319,34 +373,219 @@ const Game = struct {
             defer arena.deinit();
             // var arr = ArrayList(u8).init(arena.allocator());
             const stdout = std.io.getStdOut();
-            var writer = stdout.writer();
-            self.to_string(writer);
-            // std.debug.print("{s}", .{arr.items});
-
-            std.debug.print("1:play");
-            std.debug.print("2:discard");
-            std.debug.print("3:hint color");
-            std.debug.print("4:hint value");
             const stdin = std.io.getStdIn();
             var buffer: [100]u8 = undefined;
-            var input = (try nextLine(stdin.reader(), &buffer)).?;
-            _ = input;
-            // if (eql(u8, input, "1")) {
-            // input = (try nextLine(stdin.reader(), &buffer)).?;
-            // if(
-            // }
+            var writer = stdout.writer();
+
+            const clear = "\x1B[2J\x1B[H";
+            while (true) {
+                _ = stdout.writer().writeAll(clear) catch unreachable;
+                self.to_string(writer);
+                // std.debug.print("{s}", .{arr.items});
+                stdout.writer().print("0:play\n", .{}) catch unreachable;
+                stdout.writer().print("1:discard\n", .{}) catch unreachable;
+                stdout.writer().print("2:hint color\n", .{}) catch unreachable;
+                stdout.writer().print("3:hint value\n", .{}) catch unreachable;
+                stdout.writer().print("Chose an option:", .{}) catch unreachable;
+
+                switch (readNumber(stdin.reader(), &buffer, "\nInvalid input, try selecting an option again:", 4)) {
+                    0 => {
+                        self.simulate_play();
+                        break;
+                    },
+                    1 => {
+                        if (self.blue_tokens == INITIAL_BLUE_TOKENS) {
+                            _ = stdout.writer().write("There are too many blue tokens, so you cannot discard\n") catch unreachable;
+                            std.os.nanosleep(2, 0);
+                            continue;
+                        }
+                        self.simulate_discard(); //TODO: it needs to refuse to execute if there are max tokens
+                        break;
+                    },
+                    2 => {
+                        if (self.blue_tokens == 0) {
+                            _ = stdout.writer().write("There are no blue tokens, so you cannot hint\n") catch unreachable;
+                            std.os.nanosleep(2, 0);
+                            continue;
+                        } else {
+                            self.simulate_hint_color(); //TODO: need to refuse this if no tokens
+                            break;
+                        }
+                    },
+                    3 => {
+                        self.simulate_hint_value();
+                        break;
+                    },
+                    else => unreachable,
+                }
+            }
+            _ = self.next_turn();
         }
     }
-    fn readNumber(reader: anytype, buffer: []u8, lowerThan: u64) u64 {
+
+    fn simulate_play(self: *Self) void {
+
+        // fn play(self: *Self, index: u64) void {
+        const stdout = std.io.getStdOut();
+        const stdin = std.io.getStdIn();
+        var buffer: [100]u8 = undefined;
+
+        stdout.writer().print("Select a card index to play:", .{}) catch unreachable;
+        var selected_card = readNumber(stdin.reader(), &buffer, "\nInvalid input, select a card index again:", self.players.items[self.current_player].hand.items.len);
+        self.play(selected_card);
+    }
+
+    fn simulate_discard(self: *Self) void {
+
+        // fn discard(self: *Self, index: u64) void {
+        const stdout = std.io.getStdOut();
+        const stdin = std.io.getStdIn();
+        var buffer: [100]u8 = undefined;
+
+        stdout.writer().print("Select a card to discard:", .{}) catch unreachable;
+        var selected_card = readNumber(stdin.reader(), &buffer, "\nInvalid input, select a card index again:", self.players.items[self.current_player].hand.items.len);
+        self.discard(selected_card);
+    }
+
+    fn simulate_hint_value(self: *Self) void {
+        const stdout = std.io.getStdOut();
+        const stdin = std.io.getStdIn();
+        var buffer: [100]u8 = undefined;
+
+        while (true) {
+            stdout.writer().print("Select a player index:", .{}) catch unreachable;
+            // std.debug.print("\nShould be 5:{}\n", .{self.players.items.len});
+            var selected_player = readNumber(stdin.reader(), &buffer, "\nInvalid Input,try selecting player index again:", self.players.items.len);
+            if (selected_player == self.current_player) {
+                stdout.writer().print("\nCannot give a hint to yourself! Try again:", .{}) catch unreachable;
+                continue;
+            }
+            const player = self.players.items[selected_player];
+            const values = [_]Value{ Value.one, Value.two, Value.three, Value.four, Value.five };
+            var valueChoices = [_]bool{false} ** values.len;
+            var noneFound = true;
+            for (player.hand.items) |cardwithhints| {
+                for (values) |value, i| {
+                    if (value == cardwithhints.card.value) {
+                        valueChoices[i] = true;
+                        noneFound = false;
+                    }
+                }
+            }
+            if (noneFound) {
+                stdout.writer().print("There are no cards in that players hand, try again\n", .{}) catch unreachable;
+                continue;
+            }
+            // A value will always be chosen, so no worry
+            var i: u64 = 0;
+            for (valueChoices) |maybe_value, k| {
+                if (maybe_value) {
+                    stdout.writer().print("Enter {}: pick value ", .{i}) catch unreachable;
+                    values[k].writeValue(stdout.writer());
+                    stdout.writer().print("\n", .{}) catch unreachable;
+                    i += 1;
+                }
+            }
+            stdout.writer().print("Pick a value:", .{}) catch unreachable;
+            var chosen_value_index = readNumber(stdin.reader(), &buffer, "\nInvalid input. Try again, select a value:", i);
+
+            var chosen_value: Value = undefined;
+            i = 0;
+            for (valueChoices) |maybe_value, k| {
+                if (maybe_value) {
+                    if (chosen_value_index == i) {
+                        chosen_value = values[k];
+                    }
+                    i += 1;
+                }
+            }
+
+            // pub fn hint_color(self: *Self, color: Color, player: u64) void
+            self.hint_value(chosen_value, selected_player);
+            return;
+        }
+    }
+
+    fn simulate_hint_color(self: *Self) void {
+        const stdout = std.io.getStdOut();
+        const stdin = std.io.getStdIn();
+        var buffer: [100]u8 = undefined;
+
+        while (true) {
+            stdout.writer().print("Select a player index:", .{}) catch unreachable;
+            // std.debug.print("\nShould be 5:{}\n", .{self.players.items.len});
+            var selected_player = readNumber(stdin.reader(), &buffer, "\nInvalid Input,try selecting player index again:", self.players.items.len);
+            if (selected_player == self.current_player) {
+                stdout.writer().print("Cannot give a hint to yourself! Try again\n", .{}) catch unreachable;
+                continue;
+            }
+            const player = self.players.items[selected_player];
+
+            const colors = [_]Color{ Color.red, Color.blue, Color.green, Color.yellow, Color.white };
+            var colorChoices = [_]bool{false} ** colors.len;
+            var noneFound = true;
+            for (player.hand.items) |cardwithhints| {
+                for (colors) |color, i| {
+                    if (color == cardwithhints.card.color) {
+                        colorChoices[i] = true;
+                        noneFound = false;
+                    }
+                }
+            }
+            if (noneFound) {
+                stdout.writer().print("There are no cards in that players hand, try again\n", .{}) catch unreachable;
+                continue;
+            }
+            // A color will always be chosen, so no worry
+            var i: u64 = 0;
+            for (colorChoices) |maybe_color, k| {
+                if (maybe_color) {
+                    stdout.writer().print("Enter {}: pick ", .{i}) catch unreachable;
+                    colors[k].writeColor(stdout.writer());
+                    stdout.writer().print("\n", .{}) catch unreachable;
+                    i += 1;
+                }
+            }
+            _ = stdout.writer().print("Pick a color:", .{}) catch unreachable;
+            var chosen_color_index = readNumber(stdin.reader(), &buffer, "\nInvalid input, try again select a color:", i);
+
+            var chosen_color: Color = undefined;
+            i = 0;
+            for (colorChoices) |maybe_color, k| {
+                if (maybe_color) {
+                    if (chosen_color_index == i) {
+                        chosen_color = colors[k];
+                    }
+                    i += 1;
+                }
+            }
+
+            // pub fn hint_color(self: *Self, color: Color, player: u64) void
+            self.hint_color(chosen_color, selected_player);
+            return;
+        }
+    }
+
+    fn readNumber(reader: anytype, buffer: []u8, try_again_message: []const u8, lowerThan: u64) u64 {
         // _ = reader;
-        _ = lowerThan;
         while (true) {
             var buf = nextLine(reader, buffer) catch {
-                std.io.getStdOut().writer().write("try again\n");
+                _ = std.io.getStdOut().writer().write(try_again_message) catch unreachable;
                 continue;
             };
-            buf 
+            if (buf) |line| {
+                var number = std.fmt.parseInt(u64, line, 10) catch {
+                    _ = std.io.getStdOut().writer().write(try_again_message) catch unreachable;
+                    continue;
+                };
+                if (number >= lowerThan) {
+                    _ = std.io.getStdOut().writer().write(try_again_message) catch unreachable;
+                    continue;
+                }
+                return number;
+            }
         }
+        unreachable;
     }
     fn nextLine(reader: anytype, buffer: []u8) !?[]const u8 {
         var line = (try reader.readUntilDelimiterOrEof(

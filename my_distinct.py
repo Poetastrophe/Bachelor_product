@@ -8,6 +8,7 @@
 
 failcount = 0
 import math
+import random
 k = 5
 length=100
 evenPool=100
@@ -19,6 +20,10 @@ for i in range(len(cards)):
         for color in range(5):
             allCards.append(color*10+cards[i])
 # print(allCards)
+# random.seed(3)
+for i in range(4*4):
+    allCards.pop(random.randint(0,len(allCards)-1))
+
 
 # TODO: it should not be necessary to recurse all the way down :(
 # This has to be fixed in next iteration. 
@@ -45,9 +50,10 @@ def combinations(taken_into_account,pool,poolmax,k,cur_id):
 
     for i in range(0,take+1):
        taken_into_account[cur_id] = take - i
-       if(poolmax[cur_id+1] < k-(take-i)):
+       if(poolmax[cur_id+1] < k-(take-i)): # I should stop if what I have left
+           # is less than what I want to take
            failcount+=1
-           print("failcount:",failcount,"curid",cur_id,"takeninto",taken_into_account)
+           # print("failcount:",failcount,"curid",cur_id,"takeninto",taken_into_account)
            taken_into_account[cur_id] = 0
            return
        combinations(taken_into_account,pool,poolmax,k-(take-i),cur_id+1)
@@ -64,14 +70,19 @@ def distinct_combinations(elements,choose_k):
     subsequentarr = []
     counter = 0
     # creates subsequentarr for elements
-    for i in range(len(elements)):
-        if(i+1==len(elements) and counter == 0):
-            subsequentarr.append(1)
-        elif(elements[i]==elements[i+1]):
+    for i in range(1,len(elements)):
+        if elements[i] == elements[i-1]:
             counter+=1
-        else:
+        elif elements[i] != elements[i-1]:
             subsequentarr.append(counter+1)
             counter = 0
+
+    n = len(elements)
+    if(elements[n-1] != elements[n-2]):
+        subsequentarr.append(1)
+    # print("subse",subsequentarr)
+            
+
     # print(subsequentarr)
 
     poolmax = [0]*(len(subsequentarr)+1)
@@ -96,4 +107,5 @@ def distinct_combinations(elements,choose_k):
 
 distinct_combinations(allCards,4)
 
+# distinct_combinations([ 5, 1, 1, 2, 3, 5 ],3)
 
