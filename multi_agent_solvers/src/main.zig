@@ -6,11 +6,14 @@ const math = std.math;
 const distinct_combinations = @import("combination_helpers.zig").distinct_combinations;
 
 pub fn main() !void {
-    const k = 8;
+    var timer = try std.time.Timer.start();
+
+    const k = 4;
     const cards = [_]u64{ 1, 2, 3, 4, 5 };
     const count = [_]u64{ 3, 2, 2, 2, 1 };
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+    var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
     var allCards = ArrayList(u64).init(arena.allocator());
     defer allCards.deinit();
 
@@ -29,6 +32,8 @@ pub fn main() !void {
     //     std.debug.print("val:{any}\n", .{elem});
     // }
     // std.debug.print("\nlength:{}\n", .{arr2.items.len});
+
+    std.debug.print("\n\nnanoseconds:{}\n", .{timer.read()});
 }
 
 test "simple test" {
