@@ -1,7 +1,15 @@
 
+
 # Todo
-[ ] - Implement hanabi game as a TUI and just using logical agents
-	[ ] - Interface
+[ ] - Run a simulation of the first round and check if it is feasible to do anything you want to do :)
+	[ ] - Simulate the first round by simply giving the players cards randomly.
+	[ ] - Investigate. do the generated state spaces seem realistic? Eventually make a mini version of the hanabi deal to sanity check
+	[ ] - How slow is it with the fastest allocator you got? What if you throw out some cards and try to generate again? When is it tolerable (i.e. within a few minutes of waiting time)
+	[ ] - Does it take too much memory? If so can you compact it using the compact array strategy? Do you lose too much speed by doing so?
+	[ ] - check coherency of the arrays, are they nicely laid out in memory or do you hate it?
+
+[x] - Implement hanabi game as a TUI and test it
+	[x] - Interface
 	I think it would be cool if the players used sockets and respected the
 	interface, that way I know that it could not go wrong.
 	WONT DO: sockets, networking is a nightmare and not interesting.

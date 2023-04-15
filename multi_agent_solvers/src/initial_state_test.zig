@@ -5,7 +5,7 @@ const ArrayList = std.ArrayList;
 const math = std.math;
 const distinct_combinations = @import("combination_helpers.zig").distinct_combinations;
 
-pub fn main() !void {
+pub fn initial_state_test() void {
     var timer = try std.time.Timer.start();
 
     const k = 4;
@@ -34,12 +34,26 @@ pub fn main() !void {
     // std.debug.print("\nlength:{}\n", .{arr2.items.len});
 
     std.debug.print("\n\nnanoseconds:{}\n", .{timer.read()});
-    std.debug.print("\n\nsizeof:\n", .{timer.read()});
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+const CardSet = struct {
+    const Self = @This();
+    card_encoding: [25]u2,
+
+    pub fn subtract(self: Self, other: Self) Self { //Could be optimized by vector operations
+        var i: usize = 0;
+        // var res: CardSet = self;
+        while (i < self.card_encoding.len) : (i += 1) {
+            self[i] -= other[i];
+        }
+        return self;
+    }
+    pub fn getWholeDeckSet() Self {
+        return Self{ .card_encoding = [_]u2{ 3, 2, 2, 2, 1 } ** 5 };
+    }
+};
+
+test "CardSet subtract" {
+    var allcards = CardSet.getWholeDeckSet();
+    std.debug.print("allcards:{any}", .{allcards});
 }
