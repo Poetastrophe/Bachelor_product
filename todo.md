@@ -1,12 +1,150 @@
 
 
 # Todo
-[ ] - Run a simulation of the first round and check if it is feasible to do anything you want to do :)
-	[ ] - Simulate the first round by simply giving the players cards randomly.
-	[ ] - Investigate. do the generated state spaces seem realistic? Eventually make a mini version of the hanabi deal to sanity check
-	[ ] - How slow is it with the fastest allocator you got? What if you throw out some cards and try to generate again? When is it tolerable (i.e. within a few minutes of waiting time)
-	[ ] - Does it take too much memory? If so can you compact it using the compact array strategy? Do you lose too much speed by doing so?
-	[ ] - check coherency of the arrays, are they nicely laid out in memory or do you hate it?
+[ ] - Decide on some strategies - write them here first
+Jeg kan tage Cox informations strategien og skrive en rapport at en udvidelse dertil vil være at jeg også laver disse partition tables, og ydermere kan jeg komme med meget nøjagtige estimater for den mest "playable" hånd, idet jeg generere alle muligheder.
+
+I think that this strategy would suffice (from the Cox article regarding information strategy):
+
+Action algorithm
+A player will act using her private information with the following
+priority:
+1. Play the playable card with lowest index.
+2. If there are less than 5 cards in the discard pile, discard the dead card with lowest
+index.
+3. If there are hint tokens available, give a hint.
+4. Discard the dead card with lowest index.
+5. If a card in the player’s hand is the same as another card in any player’s hand, i.e.,
+it is a duplicate, discard that card.
+6. Discard the dispensable card with lowest index.
+7. Discard card C1.
+
+Each of these actions depends on whether the agent can deduce that it truly has some knowledge so
+1. Do I have a playable card and where is it?
+2. Do I have a dead card and where is it?
+3. - / Just hint a random card :)
+4. Do I have a dead card and where is it?
+5. Do I have a duplicate and where is it?
+6. Do I have a dispensable card and where is it?
+7. OK I discard it.
+
+I steal the categories
+1. dead  (card already played)
+1. alive (card not played yet)
+
+2. indispensible (last copy that needs to be played)
+2. dispensible (not last copy that needs to be played)
+
+3. playable (immediately playable)
+3. unplayable (not immediately playable)
+
+bool alive
+bool dispensible
+bool playable
+
+It should not be played if it is dead.
+It should not be played if it is unplayable.
+Other cases means that it is alive, but it should only be played when playable.
+
+A card should not be discarded if it is indespensible.
+A card should not be discarded if it is playable.
+
+Given the above rules, I can try to find some booleans markers that satisfies each card.
+The cards that have non-contradictory booleans will be good for taking action
+
+
+
+in reality I don't really care about the exact details of the card, I just want to know what category it falls under, so given a hand, mark it with the designated annotations.
+
+It is pretty trivial given a set of Cardshints
+red green red1 blue
+and a possible hand, just go through every permutation of the hand and see if it matches, that is make a corrospondance so
+red green red1 blue
+red1 green1 red1 blue5
+matches but
+red green red1 blue
+blue1 green1 red1 blue5
+does not :)
+	[X] - Make converter for World into a list of cards,make sure that each player has some fixed notion of their hand.
+	[X] - Each position should also have some fixed notion of alive, dispensibility, playable. And its position should be fixed so that it can be used in the game :)
+	[ ] - Take a list of cards from world and iterate through all combinations thereof until you find one that matches the current hand. -> This can also be used for layer two since that if no one matches the current hand, then we just remove that :) 
+		[ ] - make the playable, dead etc. booleans to the hand given the game state.
+		[X] - Make layer 2
+			[X] - Take the heapsalgorithm and make it more general and do not use all this comptime stuff. Make it take a buffer and integer of sorts it will probably be just as fast :)
+
+[ ] - Make mini hanabi
+	Motivation: without a mini version it will be hard to simulate strategies, so a mini version would be nice.
+	Limitations: Should play nicely with existing methods and should not make it much harder to design.
+	How mini is mini-hanabi?
+	25 cards should be more than sufficient for the deck, I think
+	3 1s, 2 2s, 1 3
+	4 colors
+	there we go
+	According to python simulated_first_rounds.py we get
+	
+	==========    Mini hanabi!!!!!!!!!! =========
+	Without looking at the other players hands state spaces
+	==============================
+	number of possibilities without looking at the other players hands 1007
+	meta knowledge without looking at the other players hands space 1014049
+	looking at the other players hands state spaces (simulated)
+	number of possibilities when looking at the other players hands 36
+	number of unique cards 12
+	
+	This is good. :)
+
+[in progress] - Make layer 2 kripke modification taking hints into account
+	kripke structure also needs to take into account the fact that some cards are hinted about.
+	Trivial enough
+	For player POV A. Remove all fixed scenarios for which the hints to A do not corrospond.
+	Then for each of the surviving scenarios for player B, remove all the
+	hands that do not corrospond to the scenarios given to B, if this
+	results in the empty set, then we know that the given scenario for A is
+	not possible and we remove that as well :)
+	
+	[ ] - Think about how to incorporate hand position, because given a set for the hand, and some hints about the hand, it should be able to deduce some things and playing a partially hinted hand, should think about the consequences of doing this.
+
+
+[X] - Run a simulation of the first round and check if it is feasible to do anything you want to do :)
+	[X] - Simulate the first round by simply giving the players cards randomly.
+
+Performance I got with the test "initial test"
+
+Initial time and space nanoseconds:26587755279
+
+
+ Initial time and space in seconds:2.6587755279e+01
+
+
+ Initial time and space totalSpace in bytes:3723631520
+
+
+ Initial time and space totalSpace in gigabytes:3.72363152e+00
+
+
+ With all optimizations
+
+ Initial time and space nanoseconds:5788229502
+
+
+ Initial time and space in seconds:5.788229502e+00
+
+
+ Initial time and space totalSpace in bytes:4028445245
+
+
+ Initial time and space totalSpace in gigabytes:4.028445245e+00
+
+
+	[X] - Investigate. do the generated state spaces seem realistic? Eventually make a mini version of the hanabi deal to sanity check
+		I made the three wise men test in the "Three wise men simulation :)" and it seems sane
+
+	[X] - How slow is it with the fastest allocator you got? What if you throw out some cards and try to generate again? When is it tolerable (i.e. within a few minutes of waiting time)
+	I think it is pretty tolerable with 27 seconds per agent per round
+	[hold] - Does it take too much memory? If so can you compact it using the compact array strategy? Do you lose too much speed by doing so?
+		This might be relevant in the future, but right now is no the future
+	[hold] - check coherency of the arrays, are they nicely laid out in memory or do you hate it?
+		I am not sure how to check this, and I think it is not urgent.
 
 [x] - Implement hanabi game as a TUI and test it
 	[x] - Interface

@@ -3,6 +3,9 @@ const sort = std.sort;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const math = std.math;
+const Hanabi_game = @import("./../../hanabi_game_with_AIs/src/hanabi_board_game.zig");
+const Card = Hanabi_game.Card;
+const CardWithHints = Hanabi_game.CardWithHints;
 const CardEncodingArrSize = 25;
 
 // zig fmt: off
@@ -230,23 +233,100 @@ pub const CardSet = struct {
         var i: usize = 0;
         var res: CardSet = self;
         while (i < self.card_encoding.len) : (i += 1) {
-            res.card_encoding[i] -= other.card_encoding[i];
+            if (res.card_encoding[i] >= other.card_encoding[i]) {
+                res.card_encoding[i] -= other.card_encoding[i];
+            } else {
+                res.card_encoding[i] = 0;
+            }
         }
         return res;
     }
+
+    pub const Error = error{
+        OtherValueIsNotSubset,
+    };
+
+    pub fn setDifferenceAssertOtherIsSubset(self: Self, other: Self) Error.OtherValueIsNotSubset!Self {
+        var i: usize = 0;
+        while (i < self.card_encoding.len) : (i += 1) {
+            if (self.card_encoding[i] < other.card_encoding[i]) {
+                return Error.OtherValueIsNotSubset;
+            }
+        }
+        return self.setDifference(other);
+    }
+
+    pub fn getSize(self: Self) u32 {
+        var acc: u32 = 0;
+        for (self.card_encoding) |card| {
+            acc += card;
+        }
+        return acc;
+    }
+
     pub fn getWholeDeckSet() Self {
         return Self{ .card_encoding = [_]u2{ 3, 2, 2, 2, 1 } ** 5 };
+    }
+
+    pub fn getWholeDeckSetMiniHanabi() Self {
+        return Self{ .card_encoding = [_]u2{ 3, 2, 1, 0, 0 } ** 4 ++ [_]u2{0} ** 5 };
     }
 
     pub fn emptySet() Self {
         return Self{ .card_encoding = [_]u2{ 0, 0, 0, 0, 0 } ** 5 };
     }
 
+    pub fn toCardList(self: Self, allocator: Allocator) ArrayList(Card) {
+        var res = ArrayList(Card).init(allocator);
+        for (self.card_encoding) |card_count, card_id| {
+            var i: u64 = 0;
+            while (i < card_count) : (i += 1) {
+                res.append(idPositionToCard(card_id));
+            }
+        }
+        return res;
+    }
+    pub fn idPositionToCard(index: u5) Card {
+        //TODO: removing magic numbers like 5
+        const colorindex = index / 5;
+        const valueindex = index % 5;
+        const color = @intToEnum(Hanabi_game.Color, colorindex);
+        const value = @intToEnum(Hanabi_game.Value, valueindex);
+        return Card{ .color = color, .value = value };
+    }
+    pub fn createUsingEncoding(card: CardEncoding) Self {
+        return CardSet{ .card_encoding = card };
+    }
+    pub fn insertCard(self: Self, card: Card) Self {
+        const color: u5 = 5 * switch (card.color) {
+            .red => 0,
+            .blue => 1,
+            .green => 2,
+            .yellow => 3,
+            .white => 4,
+            .unknown => unreachable,
+        };
+        const value: u5 = switch (card.value) {
+            .one => 1,
+            .two => 2,
+            .three => 3,
+            .four => 4,
+            .five => 5,
+            .unknown => unreachable,
+        };
+        var res = self;
+        res.card_encoding[color + value] += 1;
+        return res;
+    }
+
     pub fn get(self: Self, index: u5) u2 {
         return self.card_encoding[index];
     }
-    pub fn set(self: *Self, index: u5, val: u2) void {
-        self.card_encoding[index] = val;
+
+    pub fn set(self: Self, index: u5, val: u2) Self {
+        var res = self;
+        res.card_encoding[index] = val;
+        return res;
     }
 };
 

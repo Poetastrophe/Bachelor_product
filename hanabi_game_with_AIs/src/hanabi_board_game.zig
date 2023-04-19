@@ -99,6 +99,7 @@ const Player = struct {
 const CurrentPlayerView = struct {
     const Self = @This();
     players: ArrayList(Player),
+    initial_deck: ArrayList(Card),
     discard_pile: ArrayList(Card),
     hanabi_piles: [NUMBER_HANABI_PILES]ArrayList(Card),
     current_player: u64,
@@ -134,6 +135,7 @@ const CurrentPlayerView = struct {
 
         return Self{
             .players = players,
+            .initial_deck = game.initial_deck,
             .discard_pile = discard_pile,
             .hanabi_piles = hanabi_piles,
             .current_player = game.current_player,
@@ -151,6 +153,7 @@ pub const Game = struct {
     players: ArrayList(Player),
     discard_pile: ArrayList(Card),
     hanabi_piles: [NUMBER_HANABI_PILES]ArrayList(Card),
+    initial_deck: ArrayList(Card),
     deck: ArrayList(Card),
     blue_tokens: u64,
     black_tokens: u64,
@@ -218,6 +221,7 @@ pub const Game = struct {
             .players = players,
             .current_player = 0,
             .deck = deck,
+            .initial_deck = deck,
             .discard_pile = discard_pile,
             .hanabi_piles = hanabi_piles,
             .blue_tokens = INITIAL_BLUE_TOKENS,

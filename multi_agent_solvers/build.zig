@@ -35,11 +35,18 @@ pub fn build(b: *std.build.Builder) void {
     combi_test.setBuildMode(mode);
 
     const agent_test = b.addTest("src/agent.zig");
+    agent_test.linkLibC();
     agent_test.setTarget(target);
     agent_test.setBuildMode(mode);
+
+    const perm_test = b.addTest("src/PermutationIterator.zig");
+    // agent_test.linkLibC();
+    perm_test.setTarget(target);
+    perm_test.setBuildMode(mode);
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&exe_tests.step);
     test_step.dependOn(&combi_test.step);
     test_step.dependOn(&agent_test.step);
+    test_step.dependOn(&perm_test.step);
 }
