@@ -35,7 +35,6 @@ pub fn build(b: *std.build.Builder) void {
     combi_test.setBuildMode(mode);
 
     const agent_test = b.addTest("src/agent.zig");
-    agent_test.linkLibC();
     agent_test.setTarget(target);
     agent_test.setBuildMode(mode);
 
@@ -44,9 +43,16 @@ pub fn build(b: *std.build.Builder) void {
     perm_test.setTarget(target);
     perm_test.setBuildMode(mode);
 
-    const test_step = b.step("test", "Run unit tests");
+    const test_step = b.step("test", "Run fast unit tests");
     test_step.dependOn(&exe_tests.step);
     test_step.dependOn(&combi_test.step);
     test_step.dependOn(&agent_test.step);
     test_step.dependOn(&perm_test.step);
+
+    const big_test_step = b.step("big", "Run slow but highly optimized big tests");
+    const big_test = b.addTest("src/bigtest.zig");
+    big_test.linkLibC();
+    big_test.setTarget(target);
+    big_test.setBuildMode(mode);
+    big_test_step.dependOn(&big_test.step);
 }

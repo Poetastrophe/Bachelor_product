@@ -68,7 +68,8 @@ does not :)
 	[X] - Make converter for World into a list of cards,make sure that each player has some fixed notion of their hand.
 	[X] - Each position should also have some fixed notion of alive, dispensibility, playable. And its position should be fixed so that it can be used in the game :)
 	[ ] - Take a list of cards from world and iterate through all combinations thereof until you find one that matches the current hand. -> This can also be used for layer two since that if no one matches the current hand, then we just remove that :) 
-		[ ] - make the playable, dead etc. booleans to the hand given the game state.
+		[ ] - make a test :)
+		[X] - make the playable, dead etc. booleans to the hand given the game state.
 		[X] - Make layer 2
 			[X] - Take the heapsalgorithm and make it more general and do not use all this comptime stuff. Make it take a buffer and integer of sorts it will probably be just as fast :)
 

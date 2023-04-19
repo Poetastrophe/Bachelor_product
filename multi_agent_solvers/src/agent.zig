@@ -15,7 +15,7 @@ const PermutationIterator = @import("PermutationIterator.zig");
 
 //A world simply represent what is in the players hands.
 // Could possibly reduce it to a single hand since the way I represent it, it is obvious which hand that is fixed and which is not hmmm.
-const World = struct {
+pub const World = struct {
     const Self = @This();
     hand: CardSet,
     pub fn toCardList(self: Self, allocator: Allocator) ArrayList(Card) {
@@ -27,7 +27,7 @@ const World = struct {
 //representation from hanabi game and let that be the hint
 
 //From POV of a specific agent \__shrug_/
-const KripkeStructure = struct {
+pub const KripkeStructure = struct {
     const Self = @This();
     //Agent A: POV agent
     //Agent B: imagined knowledge for player B from the POV of A.
@@ -246,6 +246,7 @@ const KripkeStructure = struct {
 
 //TODO: I could eventually make a count of how many configuration is the various things, but right now I am only interested in certainty so I will make sure that it treats this with certainty
 const CardWithStates = struct {
+    const Self = @This();
     card: Card,
     // Can be played right now!
     is_playable: bool, //There exists an assignment such that the card is immediately playable
@@ -258,106 +259,132 @@ const CardWithStates = struct {
     // Has already been played
     is_dead: bool, //There exists an assignment such that the card is dead (i.e. cannot be played under any circumstance)
     is_alive: bool, //There exists an assignment such that the card is dead (i.e. can be played at some point in the future)
+    pub fn create(card: Card) Self {
+        return Self{ .card = card, .is_playable = false, .is_unplayable = false, .is_dispensible = false, .is_indispensible = false, .is_dead = false, .is_alive = false };
+    }
 };
 const Agent = struct {
+    const Self = @This();
     player_id: u64,
     pov_kripke_structure: KripkeStructure,
     hand: ArrayList(CardWithStates), //It only sees what is hinted about its cards, indexes should match the game state :)
     view: CurrentPlayerView,
-    // pub fn updateCardStates(self:*Self) void {
 
-    // Go through all fixed scenarios
-    // For each matching configuration with your hinthand, figure out
-    // whether the card can satisfy the booleans above.
-    // Initially the booleans should all be "false" until proven.
-    // }
+    // Should work for all hands
+    // Should not remove anything
+    pub fn updateCardStates(self: *Self) void {
+        var buffer: [200]u8 = undefined;
+        var fba = std.heap.FixedBufferAllocator.init(&buffer);
+        const allocator = fba.allocator();
+
+        // Go through all fixed scenarios
+        // For each matching configuration with your hinthand, figure out
+        // whether the card can satisfy the booleans above.
+        // Initially the booleans should all be "false" until proven.
+        for (self.hand.items) |_, i| {
+            self.hand.items[i].is_playable = false;
+            self.hand.items[i].is_unplayable = false;
+
+            self.hand.items[i].is_dispensible = false;
+            self.hand.items[i].is_indispensible = false;
+
+            self.hand.items[i].is_dead = false;
+            self.hand.items[i].is_alive = false;
+        }
+        // hinthand
+
+        var hinthand = ArrayList(Card).init(allocator);
+        for (self.hand) |cardwithstates| {
+            hinthand.append(cardwithstates.card);
+        }
+
+        var i: usize = 0;
+        while (i < self.pov_kripke_structure.worlds.len) : (i += 1) {
+            //0. find a matching hand (there is always one)
+
+            const handsize = self.hand.items.len;
+            var permutation_iterator = PermutationIterator.HeapsAlgorithm.init(allocator, handsize);
+            defer permutation_iterator.deinit();
+            while (permutation_iterator.next()) |perm| {
+                const fixed_scenario = self.world.access(i, self.player_id, 0).toCardList(allocator);
+                defer fixed_scenario.deinit();
+                if (KripkeStructure.is_matching_configuration(hinthand.items, fixed_scenario, perm)) {
+                    var k: usize = 0;
+                    while (k < handsize) : (k += 1) {
+                        const kth_card = fixed_scenario.items[perm[k]];
+
+                        // Decide whether it is playable
+                        const last_index = self.view.hanabi_piles[@enumToInt(kth_card.color)].items.len;
+                        if (last_index == @enumToInt(kth_card.value)) {
+                            self.cardwithstates.items[k].is_playable = true;
+                        } else {
+                            self.cardwithstates.items[k].is_unplayable = true;
+                        }
+
+                        // Decide whether it is dispensible
+                        // check first if it is the only one in the hand.
+                        const fixed_scenario_cardset = CardSet.createUsingSliceOfCards(fixed_scenario);
+                        var index_of_card = CardSet.cardToIdPosition(kth_card);
+                        if (fixed_scenario_cardset.get(index_of_card) > 1) {
+                            self.cardwithstates.items[k].is_dispensible = true;
+                        } else { //get(index_of_card) == 1
+                            const initial_deck = self.view.initial_deck;
+                            const discard_pile = self.view.discard_pile;
+                            const hanabi_pile = self.view.hanabi_pile;
+                            const cards_left = initial_deck.setDifference(discard_pile).setDifference(hanabi_pile);
+                            if (cards_left.get(index_of_card) == 1) {
+                                self.cardwithstates.items[k].is_indispensible = true;
+                            } else {
+                                self.cardwithstates.items[k].is_dispensible = true;
+                            }
+                        }
+
+                        //decide dead or alive
+                        if (last_index <= @enumToInt(kth_card.value)) {
+                            self.cardwithstates.items[k].is_alive = true;
+                        } else {
+                            self.cardwithstates.items[k].is_dead = true;
+                        }
+                    }
+                }
+            }
+            // PermutationIterator.HeapsAlgorithm
+
+        }
+    }
+    pub fn set_game_state(self: *Self, current_player_view: CurrentPlayerView) void {
+        std.debug.assert(current_player_view.current_player == self.player_id);
+        self.view = current_player_view;
+        self.cardwithstates.clearRetainingCapacity();
+        for (self.view.players.items[self.player_id].hand) |cardwithhints| {
+            self.cardwithstates.append(CardWithStates.create(cardwithhints.hints));
+        }
+    }
+
+    // Super method
+    //set game state,generate a new kripkestructure, simplify based on hints, update card states
+    //It is fair to assume that every time a player needs to play she has to update her entire game state, since there has been played several cards or given some hints which significantly reduces the state space.
+    // You could argue that if there has only been given hints then you don't need to generate anew, but if you expect to generate anew almost every round then that is not very justified and is therefore a premature optimization.
+    pub fn init(player_id: u64, view: CurrentPlayerView, allocator: Allocator) Self {
+        _ = player_id;
+        _ = view;
+        _ = allocator;
+        unreachable;
+    }
+    pub fn deinit(self: *Self) void {
+        _ = self;
+    }
+
+    // Execute the strategy and modify game
+    // you don't have to modify yourself given that you just take the game state
+    pub fn make_move(self: Self, game: Game) void {
+        _ = self;
+        _ = game;
+    }
+
     // A list of function pointers, that takes the Agent and the Game and returns true if it could perform the action specified by the list, otherwise it returns false and goes to next element. It is given that an action must be performed :)
     //Initially it can be just if else and not function pointers
 };
-
-//TODO: run simulation and try not to cry
-// test "Initial time and space feasibility" {
-//     var timer = try std.time.Timer.start();
-//     const deck = CardSet.getWholeDeckSet();
-//     const hanabi_pile = CardSet.emptySet();
-//     const discard_pile = CardSet.emptySet();
-//     var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
-//     // var allocator = std.testing.allocator;
-//     defer arena.deinit();
-//     var allocator = arena.allocator();
-
-//     // _ = hanabi_pile;
-//     // _ = discard_pile;
-//     // _ = allocator;
-
-//     const seed = [_]u8{1} ** 32;
-//     var generator = std.rand.DefaultCsprng.init(seed);
-//     var prng = generator.random();
-
-//     var other_players: [5]CardSet = undefined;
-//     for (&other_players) |*player| {
-//         player.* = CardSet.emptySet();
-//     }
-//     var buffer: [100]u8 = undefined;
-//     var fba = std.heap.FixedBufferAllocator.init(&buffer);
-//     const fixedalloc = fba.allocator();
-//     var cardIndices = ArrayList(u5).init(fixedalloc);
-//     defer cardIndices.deinit();
-
-//     for (deck.card_encoding) |encoding, i| {
-//         var k: u64 = 0;
-//         // std.debug.print("\nencoding:{any}\n", .{encoding});
-//         while (k < encoding) : (k += 1) {
-//             cardIndices.append(@truncate(u5, i)) catch unreachable;
-//         }
-//     }
-//     var k: u64 = 0;
-//     while (k < 5) : (k += 1) {
-//         var j: u64 = 0;
-//         while (j < 4) : (j += 1) {
-//             // std.debug.print("\nCardindices.items.len:{any}\n", .{cardIndices.items.len});
-//             var getCardAt = prng.uintLessThan(usize, cardIndices.items.len);
-//             const cardIndex = cardIndices.items[getCardAt];
-//             _ = cardIndices.swapRemove(getCardAt);
-
-//             other_players[k] = other_players[k].set(cardIndex, other_players[k].card_encoding[cardIndex] + 1);
-//         }
-//     }
-
-//     // std.debug.print("\nother_playres:{any}\n", .{other_players});
-
-//     // _ = getCardAt;
-
-//     // pub fn init(allocator: Allocator, deck: CardSet, hanabi_pile: CardSet, discard_pile: CardSet, other_players: ArrayList(CardSet), hints_about_your_cards: anytype, pov_player_handsize: u64, player_index: usize) Self {
-
-//     var myNewKripkeStructure = KripkeStructure.init(allocator, deck, hanabi_pile, discard_pile, other_players[1..5], 4, 0);
-//     defer myNewKripkeStructure.deinit();
-
-//     var totalbytesize: u64 = 0;
-//     std.debug.print("\n\n byte size of aaaw:{}\n", .{@sizeOf(ArrayList(ArrayList(ArrayList(World))))});
-//     std.debug.print("\n\n byte size of aaw:{}\n", .{@sizeOf(ArrayList(ArrayList(World)))});
-//     std.debug.print("\n\n byte size of aw:{}\n", .{@sizeOf(ArrayList(World))});
-//     std.debug.print("\n\n byte size of w:{}\n", .{@sizeOf(World)});
-//     totalbytesize += @sizeOf(ArrayList(ArrayList(ArrayList(World))));
-//     for (myNewKripkeStructure.worlds.items) |fixed_hand| {
-//         totalbytesize += @sizeOf(ArrayList(ArrayList(World)));
-//         for (fixed_hand.items) |player| {
-//             totalbytesize += @sizeOf(ArrayList(World));
-//             for (player.items) |_| {
-//                 totalbytesize += @sizeOf(World);
-//             }
-//         }
-//     }
-
-//     std.debug.print("\nsomeworld:{any}\n", .{myNewKripkeStructure.access(0, 0, 0)});
-
-//     std.debug.print("\nworld length:{}\n", .{myNewKripkeStructure.worlds.items.len});
-//     var end_time = timer.read();
-//     std.debug.print("\n\n Initial time and space nanoseconds:{}\n", .{end_time});
-//     std.debug.print("\n\n Initial time and space in seconds:{}\n", .{@intToFloat(f128, end_time) / 1E9});
-//     std.debug.print("\n\n Initial time and space totalSpace in bytes:{}\n", .{totalbytesize});
-//     std.debug.print("\n\n Initial time and space totalSpace in gigabytes:{}\n", .{@intToFloat(f128, totalbytesize) / 1E9});
-// }
 
 test "Three wise men simulation :)" {
     // 3 red, and 2 white

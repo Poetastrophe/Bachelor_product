@@ -163,14 +163,15 @@ pub fn distinct_combinations(elements: []u64, choose_k: u64, comptime NumberOfDi
     return acc;
 }
 
-test "combinations" {
-    var elems = [_]u64{ 5, 1, 1, 2, 3, 5 };
-    var arr = distinct_combinations(&elems, 3, 4, std.testing.allocator);
-    defer arr.deinit();
-    for (arr.items) |a| {
-        std.debug.print("\nhmm:{any}\n", .{a});
-    }
-}
+// test "combinations" {
+//     var elems = [_]u64{ 5, 1, 1, 2, 3, 5 };
+//     var arr = distinct_combinations(&elems, 3, 4, std.testing.allocator);
+//     defer arr.deinit();
+//     for (arr.items) |a| {
+//         std.debug.print("\nhmm:{any}\n", .{a});
+//     }
+// }
+
 fn testBigTimeCombinations() void {
     const k = 4;
     const cards = [_]u64{ 1, 2, 3, 4, 5 };
@@ -294,10 +295,7 @@ pub const CardSet = struct {
         const value = @intToEnum(Hanabi_game.Value, valueindex);
         return Card{ .color = color, .value = value };
     }
-    pub fn createUsingEncoding(card: CardEncoding) Self {
-        return CardSet{ .card_encoding = card };
-    }
-    pub fn insertCard(self: Self, card: Card) Self {
+    pub fn cardToIdPosition(card: Card) u5 {
         const color: u5 = 5 * switch (card.color) {
             .red => 0,
             .blue => 1,
@@ -314,8 +312,23 @@ pub const CardSet = struct {
             .five => 5,
             .unknown => unreachable,
         };
+        return color + value;
+    }
+
+    pub fn createUsingSliceOfCards(cards: []Card) Self {
+        var res = CardSet.emptySet();
+        for (cards) |c| {
+            res.insertCard(c);
+        }
+        return res;
+    }
+
+    pub fn createUsingEncoding(card: CardEncoding) Self {
+        return CardSet{ .card_encoding = card };
+    }
+    pub fn insertCard(self: Self, card: Card) Self {
         var res = self;
-        res.card_encoding[color + value] += 1;
+        res.card_encoding[cardToIdPosition(card)] += 1;
         return res;
     }
 
