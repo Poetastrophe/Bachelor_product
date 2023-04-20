@@ -12,6 +12,9 @@ const Player = Hanabi_game.Player;
 const Color = Hanabi_game.Color;
 const Value = Hanabi_game.Value;
 const PermutationIterator = @import("PermutationIterator.zig");
+const seed = [_]u8{1} ** 32;
+var generator = std.rand.DefaultCsprng.init(seed);
+var prng = generator.random();
 
 //A world simply represent what is in the players hands.
 // Could possibly reduce it to a single hand since the way I represent it, it is obvious which hand that is fixed and which is not hmmm.
@@ -42,7 +45,8 @@ pub const KripkeStructure = struct {
             hand_pool = hand_pool.setDifference(playerCardSet);
         }
         const pov_player_possibilities = combination_helpers.distinct_combinations_assuming_encoding(hand_pool.card_encoding, pov_player_handsize, allocator);
-        //TODO: I am throwing a way a lot of memory in the end: Use arena allocator.
+        //TODO 1: I am throwing a way a lot of memory in the end: Use arena allocator.
+        // Arena allocator would have the same problems, use a memory pool so that it can deallocate faster :)
         defer pov_player_possibilities.deinit();
         var result: ArrayList(ArrayList(ArrayList(World))) = ArrayList(ArrayList(ArrayList(World))).init(allocator);
 
@@ -244,7 +248,7 @@ pub const KripkeStructure = struct {
     }
 };
 
-//TODO: I could eventually make a count of how many configuration is the various things, but right now I am only interested in certainty so I will make sure that it treats this with certainty
+//TODO 1: I could eventually make a count of how many configuration is the various things, but right now I am only interested in certainty so I will make sure that it treats this with certainty
 const CardWithStates = struct {
     const Self = @This();
     card: Card,
@@ -352,7 +356,7 @@ const Agent = struct {
 
         }
     }
-    pub fn set_game_state(self: *Self, current_player_view: CurrentPlayerView) void {
+    pub fn insert_cards_into_hand(self: *Self, current_player_view: CurrentPlayerView) void {
         std.debug.assert(current_player_view.current_player == self.player_id);
         self.view = current_player_view;
         self.cardwithstates.clearRetainingCapacity();
@@ -400,7 +404,7 @@ const Agent = struct {
 
         var res = Self{ .player_id = player_id, .pov_kripke_structure = pov_kripke_structure, .hand = undefined, .view = view };
         res.hand = ArrayList(CardWithStates).init(allocator);
-        res.set_game_state(); //TODO should probably find a better name
+        res.insert_cards_into_hand();
         res.updateCardStates();
         return res;
     }
@@ -412,7 +416,7 @@ const Agent = struct {
 
     // Execute the strategy and modify game
     // you don't have to modify yourself given that you just take the game state
-    // TODO: give an interface that you can interact with but not get the entire game state?
+    // TODO 1: give an interface that you can interact with but not get the entire game state?
     pub fn make_move(self: Self, game: *Game) void {
         // 1. Play the playable card with lowest index.
         // It has to be beyond doubt that this card can be played
@@ -429,7 +433,7 @@ const Agent = struct {
         }
 
         // 2. If there are less than 5 cards in the discard pile, discard the dead card with lowest index
-        if (self.view.discard_pile.items.len < 5) {
+        if (self.view.discard_pile.items.len < 5 and self.view.blue_tokens != self.Hanabi_game.INITIAL_BLUE_TOKENS) {
             for (self.hand.items) |cws, i| {
                 if (cws.is_dead and !cws.is_alive) {
                     maybe_index_to_play = i;
@@ -443,10 +447,59 @@ const Agent = struct {
         }
 
         // 3. If there are hint tokens available, give a hint.
-        if (self.view.hint_tokens > 0) {
-            self.hintRandomThatIsNotAlreadyKnown(game);
+        if (self.view.blue_tokens > 0) {
+            if (self.hintRandomThatIsNotAlreadyKnown(game)) {
+                return;
+            }
+        }
+
+        // 4. Discard the dead card with lowest index.
+        if (self.view.blue_tokens != Hanabi_game.INITIAL_BLUE_TOKENS) {
+            for (self.hand.items) |cws, i| {
+                if (cws.is_dead and !cws.alive) {
+                    maybe_index_to_play = i;
+                    break;
+                }
+            }
+            if (maybe_index_to_play) |index_to_play| {
+                game.discard(index_to_play);
+                return;
+            }
+        }
+        // 5. If a card in the player’s hand is the same as another card in any player’s hand, i.e.,
+        // if (self.view.blue_tokens != Hanabi_game.INITIAL_BLUE_TOKENS) {
+        //     for (self.hand.items) |cws, i| {
+        //         if (cws.is_duplicate and !cws.is_unique and ) {
+        //             maybe_index_to_play = i;
+        //             break;
+        //         }
+        //     }
+        //     if (maybe_index_to_play) |index_to_play| {
+        //         game.discard(index_to_play);
+        //         return;
+        //     }
+        // }
+        // 6. Discard the dispensable card with lowest index.
+        if (self.view.blue_tokens != Hanabi_game.INITIAL_BLUE_TOKENS) {
+            for (self.hand.items) |cws, i| {
+                if (cws.is_duplicate and !cws.is_unique) {
+                    maybe_index_to_play = i;
+                    break;
+                }
+            }
+            if (maybe_index_to_play) |index_to_play| {
+                game.discard(index_to_play);
+                return;
+            }
+        }
+        if (self.view.blue_tokens != Hanabi_game.INITIAL_BLUE_TOKENS) {
+            // TODO 1:Should I skip turn if there are no cards to play?
+            game.discard(0);
             return;
         }
+
+        game.play(0);
+        return;
     }
 
     const HintToGive = struct {
@@ -456,7 +509,9 @@ const Agent = struct {
             color: Color,
         },
     };
-    pub fn hintRandomThatIsNotAlreadyKnown(self: *Self, game: *Game) void {
+    // True if you were able to give a hint,
+    // false otherwise.
+    pub fn hintRandomThatIsNotAlreadyKnown(self: *Self, game: *Game) bool {
         var buffer: [200]u8 = undefined;
         var fba = std.heap.FixedBufferAllocator.init(&buffer);
         const allocator = fba.allocator();
@@ -475,17 +530,19 @@ const Agent = struct {
                 }
             }
         }
+        if (possible_hints.items.len == 0) {
+            return false;
+        }
+
         // I could try to remove duplicates but now I just pick a random one.
         // The method is not that good to begin with so no need to do extra work
 
-        const seed = [_]u8{1} ** 32;
-        var generator = std.rand.DefaultCsprng.init(seed);
-        var prng = generator.random();
         var hint_to_give = possible_hints.items[prng.uintLessThan(u64, possible_hints.items.len)];
         switch (hint_to_give.value_or_color) {
             .value => game.hint_value(hint_to_give.value_or_color.value, hint_to_give.to_player),
             .color => game.hint_color(hint_to_give.value_or_color.color, hint_to_give.to_player),
         }
+        return true;
     }
 
     // A list of function pointers, that takes the Agent and the Game and returns true if it could perform the action specified by the list, otherwise it returns false and goes to next element. It is given that an action must be performed :)

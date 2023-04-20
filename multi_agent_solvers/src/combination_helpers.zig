@@ -9,7 +9,7 @@ const CardWithHints = Hanabi_game.CardWithHints;
 const CardEncodingArrSize = 25;
 
 // zig fmt: off
-const CardEncoding = [CardEncodingArrSize]u2; //TODO: encoding actually not
+const CardEncoding = [CardEncodingArrSize]u2; //TODO 1: encoding actually not
                                               // compact, due to the fact that 1
                                               // byte is the smallest natural
                                               // alignment, and so we have 6 bits
@@ -227,6 +227,8 @@ pub fn initial_state_test() void {
 }
 
 pub const CardSet = struct {
+    const COLOR_N = 5;
+    const VALUE_N = 5;
     const Self = @This();
     card_encoding: CardEncoding,
 
@@ -266,15 +268,15 @@ pub const CardSet = struct {
     }
 
     pub fn getWholeDeckSet() Self {
-        return Self{ .card_encoding = [_]u2{ 3, 2, 2, 2, 1 } ** 5 };
+        return Self{ .card_encoding = [_]u2{ 3, 2, 2, 2, 1 } ** COLOR_N };
     }
 
     pub fn getWholeDeckSetMiniHanabi() Self {
-        return Self{ .card_encoding = [_]u2{ 3, 2, 1, 0, 0 } ** 4 ++ [_]u2{0} ** 5 };
+        return Self{ .card_encoding = [_]u2{ 3, 2, 1, 0, 0 } ** COLOR_N ++ [_]u2{0} ** 5 };
     }
 
     pub fn emptySet() Self {
-        return Self{ .card_encoding = [_]u2{ 0, 0, 0, 0, 0 } ** 5 };
+        return Self{ .card_encoding = [_]u2{ 0, 0, 0, 0, 0 } ** COLOR_N };
     }
 
     pub fn toCardList(self: Self, allocator: Allocator) ArrayList(Card) {
@@ -288,15 +290,14 @@ pub const CardSet = struct {
         return res;
     }
     pub fn idPositionToCard(index: u5) Card {
-        //TODO: removing magic numbers like 5
-        const colorindex = index / 5;
-        const valueindex = index % 5;
+        const colorindex = index / COLOR_N;
+        const valueindex = index % VALUE_N;
         const color = @intToEnum(Hanabi_game.Color, colorindex);
         const value = @intToEnum(Hanabi_game.Value, valueindex);
         return Card{ .color = color, .value = value };
     }
     pub fn cardToIdPosition(card: Card) u5 {
-        const color: u5 = 5 * switch (card.color) {
+        const color: u5 = COLOR_N * switch (card.color) {
             .red => 0,
             .blue => 1,
             .green => 2,

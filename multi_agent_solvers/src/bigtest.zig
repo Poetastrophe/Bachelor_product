@@ -15,7 +15,6 @@ const PermutationIterator = @import("PermutationIterator.zig");
 const KripkeStructure = @import("agent.zig").KripkeStructure;
 const World = @import("agent.zig").World;
 
-// TODO: run simulation and try not to cry
 test "Initial time and space feasibility" {
     var timer = try std.time.Timer.start();
     const deck = CardSet.getWholeDeckSet();
