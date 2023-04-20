@@ -94,6 +94,9 @@ const Player = struct {
             _ = writer.write(" ") catch unreachable;
         }
     }
+    pub fn deinit(self: *Self) void {
+        self.hand.deinit();
+    }
 };
 
 const CurrentPlayerView = struct {
@@ -144,6 +147,17 @@ const CurrentPlayerView = struct {
             .game_is_over = game.game_is_over,
             .rounds_left = game.rounds_left,
         };
+    }
+    pub fn deinit(self: *Self) void {
+        for (self.players.items) |p| {
+            p.deinit();
+        }
+        self.players.deinit();
+        self.initial_deck.deinit();
+        self.discard_pile.deinit();
+        for (self.hanabi_piles) |list| {
+            list.deinit();
+        }
     }
 };
 
@@ -229,6 +243,18 @@ pub const Game = struct {
             .game_is_over = false,
             .rounds_left = std.math.maxInt(u64),
         };
+    }
+    pub fn deinit(self: *Self) void {
+        for (self.players.items) |p| {
+            p.deinit();
+        }
+        self.players.deinit();
+        self.initial_deck.deinit();
+        self.discard_pile.deinit();
+        for (self.hanabi_piles) |list| {
+            list.deinit();
+        }
+        self.deck.deinit();
     }
 
     pub fn get_score(self: Self) u64 {

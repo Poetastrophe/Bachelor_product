@@ -23,6 +23,52 @@ Each of these actions depends on whether the agent can deduce that it truly has 
 1. Do I have a playable card and where is it?
 2. Do I have a dead card and where is it?
 3. - / Just hint a random card :)
+	This is probably the most interesting aspect
+	Because you can either simply make use of the Cox information strategy
+	in addition to whatever your knowledge base gives you and that would
+	probably be powerful. Where you also can infer better probability distributions due to the knowledge base structure.
+
+	Or another interesting aspect is to use your knowledge base to see
+	whether the other player already knows which cards are playable and
+	discardable. In this way, if you know that there are some of their
+	cards they don't know how to play, you can simply simulate each
+	available hint and see which one that most simplifies they play
+	options. Either that or see which hint that most simplifies their
+	number of imagined hands. Either way, lots of interesting stuff
+	This could also be combined with coxs information strategy. In the
+	sense that if some player already know that a card is playable, then it
+	is not interesting to hint about that card.
+
+	If player A knows that player B knows that they have a playable card at position 2
+	does player C know that B knows that?
+
+	Player A would only be able to give hints properly, if it is common
+	knowledge that player B position 2 card is playable.
+	So I am back to, what is common knowledge?
+	Otherwise the information strategy partition table would not be able to
+	know which card to target. Here we of course target cards which are not
+	known whether they are discardable or playable. If it is common
+	knowledge that position 2 card is playable, then of course, you
+	wouldn't need to hint about that
+	- On the top of my head, I think I would need to extend the graph even more...
+	-- A strategy would be to
+		For every hand player A imagines C imagines they have
+		initialdeck - world[fixed_scenario_A][A][0] - world[fixed_scenario_A][C].fixed_C - hanabi_pile - discard pile - all_hands_except_the_B_C_A_hand
+		generate every hand for B and see if there is any certainty
+		related to any of them. And if C is certain about any of the
+		cards, lets call this set of certain cards C, then I claim that
+		this set has less or equal number of certain cards to As idea
+		of what B is certain about. 
+		If you do this for all, and find out which they all are
+		uncertain about, can this generation match all the agents idea
+		of what is uncertain?
+		Would probably require some tests to know for sure.
+	
+
+
+
+
+
 4. Do I have a dead card and where is it?
 5. Do I have a duplicate and where is it?
 6. Do I have a dispensable card and where is it?

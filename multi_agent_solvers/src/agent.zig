@@ -252,15 +252,15 @@ const CardWithStates = struct {
     is_playable: bool, //There exists an assignment such that the card is immediately playable
     is_unplayable: bool, //There exists an assignment such that the card is not immediately playable
 
-    // Is unique and needs to be played
-    is_dispensible: bool, //There exists an assignment such that the card is dispensible (i.e. can be discarded)
-    is_indispensible: bool, //There exists an assignment such that the card is indispesible (i.e. cannot be discarded)
+    // Is unique
+    is_unique: bool, //There exists an assignment such that the card is dispensible (i.e. can be discarded)
+    is_duplicate: bool, //There exists an assignment such that the card is indispesible (i.e. cannot be discarded)
 
-    // Has already been played
+    // Has already been played or needs to be played
     is_dead: bool, //There exists an assignment such that the card is dead (i.e. cannot be played under any circumstance)
     is_alive: bool, //There exists an assignment such that the card is dead (i.e. can be played at some point in the future)
     pub fn create(card: Card) Self {
-        return Self{ .card = card, .is_playable = false, .is_unplayable = false, .is_dispensible = false, .is_indispensible = false, .is_dead = false, .is_alive = false };
+        return Self{ .card = card, .is_playable = false, .is_unplayable = false, .is_unique = false, .is_duplicate = false, .is_dead = false, .is_alive = false };
     }
 };
 const Agent = struct {
@@ -285,8 +285,8 @@ const Agent = struct {
             self.hand.items[i].is_playable = false;
             self.hand.items[i].is_unplayable = false;
 
-            self.hand.items[i].is_dispensible = false;
-            self.hand.items[i].is_indispensible = false;
+            self.hand.items[i].is_unique = false;
+            self.hand.items[i].is_duplicate = false;
 
             self.hand.items[i].is_dead = false;
             self.hand.items[i].is_alive = false;
@@ -326,16 +326,16 @@ const Agent = struct {
                         const fixed_scenario_cardset = CardSet.createUsingSliceOfCards(fixed_scenario);
                         var index_of_card = CardSet.cardToIdPosition(kth_card);
                         if (fixed_scenario_cardset.get(index_of_card) > 1) {
-                            self.cardwithstates.items[k].is_dispensible = true;
+                            self.cardwithstates.items[k].is_unique = true;
                         } else { //get(index_of_card) == 1
                             const initial_deck = self.view.initial_deck;
                             const discard_pile = self.view.discard_pile;
                             const hanabi_pile = self.view.hanabi_pile;
                             const cards_left = initial_deck.setDifference(discard_pile).setDifference(hanabi_pile);
                             if (cards_left.get(index_of_card) == 1) {
-                                self.cardwithstates.items[k].is_indispensible = true;
+                                self.cardwithstates.items[k].is_duplicate = true;
                             } else {
-                                self.cardwithstates.items[k].is_dispensible = true;
+                                self.cardwithstates.items[k].is_unique = true;
                             }
                         }
 
@@ -366,20 +366,126 @@ const Agent = struct {
     //It is fair to assume that every time a player needs to play she has to update her entire game state, since there has been played several cards or given some hints which significantly reduces the state space.
     // You could argue that if there has only been given hints then you don't need to generate anew, but if you expect to generate anew almost every round then that is not very justified and is therefore a premature optimization.
     pub fn init(player_id: u64, view: CurrentPlayerView, allocator: Allocator) Self {
-        _ = player_id;
-        _ = view;
-        _ = allocator;
-        unreachable;
+
+        // unreachable;
+        // player_id: u64,
+        // pov_kripke_structure: KripkeStructure,
+        // hand: ArrayList(CardWithStates), //It only sees what is hinted about its cards, indexes should match the game state :)
+        // view: CurrentPlayerView,
+
+        // pub fn init(allocator: Allocator, initial_deck: CardSet, hanabi_pile: CardSet, discard_pile: CardSet, other_players: []CardSet, pov_player_handsize: u64, pov_player_index: usize) Self {
+
+        // var buffer: [200]u8 = undefined;
+        // var fba = std.heap.FixedBufferAllocator.init(&buffer);
+        // const allocator = fba.allocator();
+        var other_players = ArrayList(CardSet).init(allocator);
+        defer other_players.deinit();
+        for (view.players.items) |player, i| {
+            if (i == player_id) {
+                continue;
+            }
+            var hand = ArrayList(Card).init(allocator);
+            defer hand.deinit();
+            for (player.hand.items) |cardwithhints| {
+                const card = cardwithhints.card;
+                hand.append(card);
+            }
+            other_players.append(CardSet.createUsingSliceOfCards(hand.items));
+        }
+
+        var pov_kripke_structure = KripkeStructure.init(allocator, view.initial_deck, view.hanabi_pile, view.discard_pile, other_players, view.players.items[player_id].items.len, player_id);
+
+        // pub fn remove_worlds_based_on_hints(self: *Self, players: []Player, pov_player_index: usize) void {
+        pov_kripke_structure.remove_worlds_based_on_hints(view.players.items, player_id);
+
+        var res = Self{ .player_id = player_id, .pov_kripke_structure = pov_kripke_structure, .hand = undefined, .view = view };
+        res.hand = ArrayList(CardWithStates).init(allocator);
+        res.set_game_state(); //TODO should probably find a better name
+        res.updateCardStates();
+        return res;
     }
     pub fn deinit(self: *Self) void {
-        _ = self;
+        self.pov_kripke_structure.deinit();
+        self.hand.deinit();
+        self.view.deinit();
     }
 
     // Execute the strategy and modify game
     // you don't have to modify yourself given that you just take the game state
-    pub fn make_move(self: Self, game: Game) void {
-        _ = self;
-        _ = game;
+    // TODO: give an interface that you can interact with but not get the entire game state?
+    pub fn make_move(self: Self, game: *Game) void {
+        // 1. Play the playable card with lowest index.
+        // It has to be beyond doubt that this card can be played
+        var maybe_index_to_play: ?usize = null;
+        for (self.hand.items) |cws, i| {
+            if (cws.is_playable and !cws.is_unplayable and !cws.is_dead) {
+                maybe_index_to_play = i;
+                break;
+            }
+        }
+        if (maybe_index_to_play) |index_to_play| {
+            game.play(index_to_play);
+            return;
+        }
+
+        // 2. If there are less than 5 cards in the discard pile, discard the dead card with lowest index
+        if (self.view.discard_pile.items.len < 5) {
+            for (self.hand.items) |cws, i| {
+                if (cws.is_dead and !cws.is_alive) {
+                    maybe_index_to_play = i;
+                    break;
+                }
+            }
+            if (maybe_index_to_play) |index_to_play| {
+                game.discard(index_to_play);
+                return;
+            }
+        }
+
+        // 3. If there are hint tokens available, give a hint.
+        if (self.view.hint_tokens > 0) {
+            self.hintRandomThatIsNotAlreadyKnown(game);
+            return;
+        }
+    }
+
+    const HintToGive = struct {
+        to_player: usize,
+        value_or_color: union(enum) {
+            value: Value,
+            color: Color,
+        },
+    };
+    pub fn hintRandomThatIsNotAlreadyKnown(self: *Self, game: *Game) void {
+        var buffer: [200]u8 = undefined;
+        var fba = std.heap.FixedBufferAllocator.init(&buffer);
+        const allocator = fba.allocator();
+
+        var possible_hints = ArrayList(HintToGive).init(allocator);
+        for (self.view.players.items) |p, i| {
+            if (i == self.player_id) {
+                continue;
+            }
+            for (p.cardwithhints.items) |cwh| {
+                if (cwh.hints.color == Color.unknown) {
+                    possible_hints.append(HintToGive{ .to_player = i, .value_or_color = cwh.card.color });
+                }
+                if (cwh.hints.value == Value.unknown) {
+                    possible_hints.append(HintToGive{ .to_player = i, .value_or_color = cwh.card.value });
+                }
+            }
+        }
+        // I could try to remove duplicates but now I just pick a random one.
+        // The method is not that good to begin with so no need to do extra work
+
+        const seed = [_]u8{1} ** 32;
+        var generator = std.rand.DefaultCsprng.init(seed);
+        var prng = generator.random();
+        var hint_to_give = possible_hints.items[prng.uintLessThan(u64, possible_hints.items.len)];
+        switch (hint_to_give.value_or_color) {
+            .value => game.hint_value(hint_to_give.value_or_color.value, hint_to_give.to_player),
+            .color => game.hint_color(hint_to_give.value_or_color.color, hint_to_give.to_player),
+        }
     }
 
     // A list of function pointers, that takes the Agent and the Game and returns true if it could perform the action specified by the list, otherwise it returns false and goes to next element. It is given that an action must be performed :)
