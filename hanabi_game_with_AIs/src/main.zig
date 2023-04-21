@@ -1,5 +1,7 @@
 const std = @import("std");
+const ArrayList = std.ArrayList;
 const hanabi = @import("./hanabi_board_game.zig");
+const AI_runner = @import("./ai_simulation_runner.zig");
 
 pub fn main() !void {
     // // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
@@ -23,11 +25,24 @@ pub fn main() !void {
     // _ = writer.writeAll(RED) catch unreachable;
     // _ = writer.write("test") catch unreachable;
     // _ = writer.write("\n") catch unreachable;
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
+    var buffer2: [500]u8 = undefined;
+    var fba2 = std.heap.FixedBufferAllocator.init(&buffer2);
+    const writer_allocator = fba2.allocator();
+    var arr = ArrayList(u8).init(writer_allocator);
+    var writer = arr.writer();
+
+    var buffer: [AI_runner.BytesPerGame * 3]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&buffer);
+    const fba_allocator = fba.allocator();
+
     var seed = [_]u8{1} ** 32;
-    var game = hanabi.Game.init(arena.allocator(), 5, seed);
-    game.simulate(arena.allocator());
+    var game = hanabi.Game.init(fba_allocator, 5, seed);
+
+    var simulation_runner = AI_runner.SimulationRunner.init(game, fba_allocator, std.heap.page_allocator);
+    var resGame = simulation_runner.play_a_round();
+
+    resGame.to_string(writer);
+    std.debug.print("{s}", .{arr.items});
 }
 
 test "simple test" {

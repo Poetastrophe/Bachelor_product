@@ -256,6 +256,17 @@ const CardWithStates = struct {
     is_playable: bool, //There exists an assignment such that the card is immediately playable
     is_unplayable: bool, //There exists an assignment such that the card is not immediately playable
 
+    // Is dispensible
+    // It is not dispensible if you cannot get a perfect score without it
+    is_dispensible_and_duplicate_exists_in_some_hand: bool,
+    not_is_dispensible_and_duplicate_exists_in_some_hand: bool,
+
+    is_dispensible_and_duplicate_exists_in_the_deck: bool,
+    not_is_dispensible_and_duplicate_exists_in_the_deck: bool,
+
+    is_dispensible: bool,
+    is_indispensible: bool,
+
     // Is unique
     is_unique: bool, //There exists an assignment such that the card is dispensible (i.e. can be discarded)
     is_duplicate: bool, //There exists an assignment such that the card is indispesible (i.e. cannot be discarded)
@@ -264,7 +275,7 @@ const CardWithStates = struct {
     is_dead: bool, //There exists an assignment such that the card is dead (i.e. cannot be played under any circumstance)
     is_alive: bool, //There exists an assignment such that the card is dead (i.e. can be played at some point in the future)
     pub fn create(card: Card) Self {
-        return Self{ .card = card, .is_playable = false, .is_unplayable = false, .is_unique = false, .is_duplicate = false, .is_dead = false, .is_alive = false };
+        return Self{ .card = card, .is_playable = false, .is_unplayable = false, .is_dispensible_and_duplicate_exists_in_some_hand = false, .not_is_dispensible_and_duplicate_exists_in_some_hand = false, .is_dispensible_and_duplicate_exists_in_the_deck = false, .not_is_dispensible_and_duplicate_exists_in_the_deck = false, .is_dispensible = false, .is_indispensible = false, .is_unique = false, .is_duplicate = false, .is_dead = false, .is_alive = false };
     }
 };
 const Agent = struct {
@@ -286,20 +297,23 @@ const Agent = struct {
         // whether the card can satisfy the booleans above.
         // Initially the booleans should all be "false" until proven.
         for (self.hand.items) |_, i| {
-            self.hand.items[i].is_playable = false;
-            self.hand.items[i].is_unplayable = false;
-
-            self.hand.items[i].is_unique = false;
-            self.hand.items[i].is_duplicate = false;
-
-            self.hand.items[i].is_dead = false;
-            self.hand.items[i].is_alive = false;
+            self.hand.items[i] = CardWithStates.create(self.hand.items[i].card);
         }
         // hinthand
 
         var hinthand = ArrayList(Card).init(allocator);
         for (self.hand) |cardwithstates| {
             hinthand.append(cardwithstates.card);
+        }
+        // Other player hands
+        var other_player_hands_set = CardSet.emptySet();
+        for (self.view.players.items) |p, i| {
+            if (i == self.player_id) {
+                continue;
+            }
+            for (p.items) |cardwithhints| {
+                other_player_hands_set = other_player_hands_set.insertCard(cardwithhints.card);
+            }
         }
 
         var i: usize = 0;
@@ -325,22 +339,33 @@ const Agent = struct {
                             self.cardwithstates.items[k].is_unplayable = true;
                         }
 
-                        // Decide whether it is dispensible
+                        // Decide whether it is unique
                         // check first if it is the only one in the hand.
+                        var dispensible_in_deck = false;
+                        var dispensible_in_hand = false;
                         const fixed_scenario_cardset = CardSet.createUsingSliceOfCards(fixed_scenario);
                         var index_of_card = CardSet.cardToIdPosition(kth_card);
-                        if (fixed_scenario_cardset.get(index_of_card) > 1) {
-                            self.cardwithstates.items[k].is_unique = true;
-                        } else { //get(index_of_card) == 1
-                            const initial_deck = self.view.initial_deck;
-                            const discard_pile = self.view.discard_pile;
-                            const hanabi_pile = self.view.hanabi_pile;
-                            const cards_left = initial_deck.setDifference(discard_pile).setDifference(hanabi_pile);
-                            if (cards_left.get(index_of_card) == 1) {
-                                self.cardwithstates.items[k].is_duplicate = true;
-                            } else {
-                                self.cardwithstates.items[k].is_unique = true;
-                            }
+                        const hands_set = fixed_scenario_cardset.add(other_player_hands_set);
+                        if (hands_set.get(index_of_card) > 1) {
+                            self.cardwithstates.items[k].is_dispensible_and_duplicate_exists_in_the_hand = true;
+                            dispensible_in_hand = true;
+                        } else {
+                            self.cardwithstates.items[k].not_is_dispensible_and_duplicate_exists_in_the_hand = true;
+                        }
+
+                        const left_in_the_deck = self.view.initial_deck.setDifference(hands_set).setDifference(self.view.hanabi_pile).setDifference(self.view.discard_pile);
+
+                        if (left_in_the_deck.get(index_of_card) > 0) {
+                            dispensible_in_deck = true;
+                            self.cardwithstates.items[k].is_dispensible_and_duplicate_exists_in_the_deck = true;
+                        } else {
+                            self.cardwithstates.items[k].not_is_dispensible_and_duplicate_exists_in_the_deck = true;
+                        }
+
+                        if (dispensible_in_deck or dispensible_in_hand) {
+                            self.cardwithstates.items[k].is_dispensible = true;
+                        } else {
+                            self.cardwithstates.items[k].is_indispensible = true;
                         }
 
                         //decide dead or alive
@@ -422,11 +447,12 @@ const Agent = struct {
         // It has to be beyond doubt that this card can be played
         var maybe_index_to_play: ?usize = null;
         for (self.hand.items) |cws, i| {
-            if (cws.is_playable and !cws.is_unplayable and !cws.is_dead) {
+            if (cws.is_playable and !cws.is_unplayable) {
                 maybe_index_to_play = i;
                 break;
             }
         }
+
         if (maybe_index_to_play) |index_to_play| {
             game.play(index_to_play);
             return;
@@ -466,23 +492,11 @@ const Agent = struct {
                 return;
             }
         }
+
         // 5. If a card in the player’s hand is the same as another card in any player’s hand, i.e.,
-        // if (self.view.blue_tokens != Hanabi_game.INITIAL_BLUE_TOKENS) {
-        //     for (self.hand.items) |cws, i| {
-        //         if (cws.is_duplicate and !cws.is_unique and ) {
-        //             maybe_index_to_play = i;
-        //             break;
-        //         }
-        //     }
-        //     if (maybe_index_to_play) |index_to_play| {
-        //         game.discard(index_to_play);
-        //         return;
-        //     }
-        // }
-        // 6. Discard the dispensable card with lowest index.
         if (self.view.blue_tokens != Hanabi_game.INITIAL_BLUE_TOKENS) {
             for (self.hand.items) |cws, i| {
-                if (cws.is_duplicate and !cws.is_unique) {
+                if (cws.is_dispensible_and_duplicate_exists_in_some_hand and !cws.not_is_dispensible_and_duplicate_exists_in_some_hand) {
                     maybe_index_to_play = i;
                     break;
                 }
@@ -492,12 +506,29 @@ const Agent = struct {
                 return;
             }
         }
+
+        // 6. Discard the dispensable card with lowest index.
+        if (self.view.blue_tokens != Hanabi_game.INITIAL_BLUE_TOKENS) {
+            for (self.hand.items) |cws, i| {
+                if (cws.is_dispensible and !cws.is_indispensible) {
+                    maybe_index_to_play = i;
+                    break;
+                }
+            }
+            if (maybe_index_to_play) |index_to_play| {
+                game.discard(index_to_play);
+                return;
+            }
+        }
+
+        // 7. Discard card C1.
         if (self.view.blue_tokens != Hanabi_game.INITIAL_BLUE_TOKENS) {
             // TODO 1:Should I skip turn if there are no cards to play?
             game.discard(0);
             return;
         }
 
+        // Just for good measure, I can also play
         game.play(0);
         return;
     }

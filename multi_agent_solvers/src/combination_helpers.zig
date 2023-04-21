@@ -232,6 +232,13 @@ pub const CardSet = struct {
     const Self = @This();
     card_encoding: CardEncoding,
 
+    pub fn add(self: Self, other: Self) Self {
+        var res: CardSet = self;
+        for (other) |elem, i| {
+            res[i] += elem;
+        }
+        return res;
+    }
     pub fn setDifference(self: Self, other: Self) Self { //Could be optimized by vector operations
         var i: usize = 0;
         var res: CardSet = self;
