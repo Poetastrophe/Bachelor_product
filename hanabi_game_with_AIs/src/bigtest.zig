@@ -73,15 +73,17 @@ test "Initial time and space feasibility" {
             }
         }
     }
-    for (myNewKripkeStructure.worlds.items) |fixed_hand, fhi| {
-        for (fixed_hand.items) |player, pi| {
-            std.debug.print("for fixed hand:{}, player {}, has {} combinations\n", .{ fhi, pi, player.items.len });
-        }
-    }
+
+    // for (myNewKripkeStructure.worlds.items) |fixed_hand, fhi| {
+    //     for (fixed_hand.items) |player, pi| {
+    //         std.debug.print("for fixed hand:{}, player {}, has {} combinations\n", .{ fhi, pi, player.items.len });
+    //     }
+    // }
 
     var end_time = timer.read();
-    std.debug.print("\n\n Initial time and space nanoseconds:{}\n", .{end_time});
-    std.debug.print("\n\n Initial time and space in seconds:{}\n", .{@intToFloat(f128, end_time) / 1E9});
-    std.debug.print("\n\n Initial time and space totalSpace in bytes:{}\n", .{totalbytesize});
-    std.debug.print("\n\n Initial time and space totalSpace in gigabytes:{}\n", .{@intToFloat(f128, totalbytesize) / 1E9});
+    _ = end_time;
+    // std.debug.print("\n\n Initial time and space nanoseconds:{}\n", .{end_time});
+    // std.debug.print("\n\n Initial time and space in seconds:{}\n", .{@intToFloat(f128, end_time) / 1E9});
+    // std.debug.print("\n\n Initial time and space totalSpace in bytes:{}\n", .{totalbytesize});
+    // std.debug.print("\n\n Initial time and space totalSpace in gigabytes:{}\n", .{@intToFloat(f128, totalbytesize) / 1E9});
 }

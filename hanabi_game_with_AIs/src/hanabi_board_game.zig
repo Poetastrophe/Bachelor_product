@@ -133,18 +133,18 @@ pub const CurrentPlayerView = struct {
 
         var players = ArrayList(Player).init(allocator);
 
-        for (game.players.items) |p| {
-            p.to_string(std.io.getStdOut().writer());
-        }
+        // for (game.players.items) |p| {
+        // p.to_string(std.io.getStdOut().writer());
+        // }
 
         i = 0;
         while (i < game.players.items.len) : (i += 1) {
             players.append(Player.init(allocator, game.players.items[i].hand.items)) catch unreachable;
         }
 
-        for (players.items) |p| {
-            p.to_string(std.io.getStdOut().writer());
-        }
+        // for (players.items) |p| {
+        // p.to_string(std.io.getStdOut().writer());
+        // }
 
         for (players.items[game.current_player].hand.items) |_, k| {
             players.items[game.current_player].hand.items[k].card = Card{ .color = Color.unknown, .value = Value.unknown };

@@ -1,5 +1,6 @@
 const std = @import("std");
 const combination_helpers = @import("combination_helpers.zig");
+const globals_test = @import("globals_test.zig");
 const Hanabi_game = @import("./../hanabi_board_game.zig");
 const CardWithHints = Hanabi_game.CardWithHints;
 const CurrentPlayerView = Hanabi_game.CurrentPlayerView;
@@ -38,6 +39,16 @@ pub const KripkeStructure = struct {
     worlds: ArrayList(ArrayList(ArrayList(World))),
 
     pub fn init(allocator: Allocator, initial_deck: CardSet, hanabi_pile: CardSet, discard_pile: CardSet, other_players: []CardSet, pov_player_handsize: u64, pov_player_index: usize) Self {
+        var timer: std.time.Timer = undefined;
+        var start: u64 = undefined;
+        var end: u64 = undefined;
+
+        if (globals_test.KripkeStructure_init_time) {
+            timer = std.time.Timer.start() catch unreachable;
+            start = timer.read();
+        }
+        // var timer = std.time.Timer.start() catch unreachable;
+        // var start_generation1 = timer.instant();
         var hand_pool = initial_deck.setDifference(hanabi_pile).setDifference(discard_pile);
         for (other_players) |playerCardSet| {
             hand_pool = hand_pool.setDifference(playerCardSet);
@@ -45,6 +56,7 @@ pub const KripkeStructure = struct {
         const pov_player_possibilities = combination_helpers.distinct_combinations_assuming_encoding(hand_pool.card_encoding, pov_player_handsize, allocator);
         //TODO 1: I am throwing a way a lot of memory in the end: Use arena allocator.
         // Arena allocator would have the same problems, use a memory pool so that it can deallocate faster :)
+
         defer pov_player_possibilities.deinit();
         var result: ArrayList(ArrayList(ArrayList(World))) = ArrayList(ArrayList(ArrayList(World))).init(allocator);
 
@@ -79,6 +91,11 @@ pub const KripkeStructure = struct {
             }
             result.append(tmpLevel2) catch unreachable;
         }
+
+        if (globals_test.KripkeStructure_init_time) {
+            end = timer.read();
+            std.debug.print("KripkeStructure.init.time:{}\n", .{end - start});
+        }
         return KripkeStructure{ .worlds = result };
     }
 
@@ -91,6 +108,13 @@ pub const KripkeStructure = struct {
     }
 
     pub fn remove_worlds_based_on_hints(self: *Self, players: []Player, pov_player_index: usize, tmp_calc_allocator: Allocator) void {
+        var timer: std.time.Timer = undefined;
+        var start: u64 = undefined;
+        var end: u64 = undefined;
+        if (globals_test.KripkeStructure_remove_worlds_based_on_hints_time) {
+            timer = std.time.Timer.start() catch unreachable;
+            start = timer.read();
+        }
 
         // 0. Remove pov player states
         var pov_player_hand_raw = players[pov_player_index].hand;
@@ -169,6 +193,10 @@ pub const KripkeStructure = struct {
                 }
             }
         }
+        if (globals_test.KripkeStructure_remove_worlds_based_on_hints_time) {
+            end = timer.read();
+            std.debug.print("KripkeStructure.remove_worlds_based_on_hints.time:{}\n", .{end - start});
+        }
     }
 
     //hinthand is the hand containing only hints, so there might be color/value = unknown
@@ -179,9 +207,58 @@ pub const KripkeStructure = struct {
             return false;
         }
 
+        if (globals_test.Agent_other_has_some_matching_configuration_check_unique_hands) {
+            var buffer: [1600]u8 = undefined;
+            var fba = std.heap.FixedBufferAllocator.init(&buffer);
+            const allocator = fba.allocator();
+
+            var permutation_iterator = PermutationIterator.HeapsAlgorithm.init(allocator, hinthand.len);
+            defer permutation_iterator.deinit();
+
+            var arr_hand_count = ArrayList(ArrayList(Card)).initCapacity(allocator, 25) catch unreachable;
+
+            while (permutation_iterator.next()) |perm| {
+                var someHand = ArrayList(Card).initCapacity(allocator, 6) catch unreachable;
+                for (hinthand) |_, i| {
+                    someHand.append(hinthand[perm[i]]) catch unreachable;
+                }
+                arr_hand_count.append(someHand) catch unreachable;
+            }
+
+            std.debug.print("Agent.other_has_some_matching_configuration.number_of_unique_hands B4 REMOVAL:{}\n", .{arr_hand_count.items.len});
+
+            var total = arr_hand_count.items.len;
+            var i: usize = 0;
+            while (i < total) : (i += 1) {
+                const n = arr_hand_count.items.len;
+                var j: usize = 0;
+                while (j < n) : (j += 1) {
+                    const tail = n - j - 1;
+                    if (tail == i) {
+                        break;
+                    }
+                    var is_identical = true;
+                    for (arr_hand_count.items[i].items) |_, k| {
+                        const card_A = arr_hand_count.items[i].items[k];
+                        const card_B = arr_hand_count.items[tail].items[k];
+                        if (card_A.color != card_B.color or card_A.value != card_B.value) {
+                            is_identical = false;
+                        }
+                    }
+
+                    if (is_identical) {
+                        _ = arr_hand_count.swapRemove(tail);
+                        total -= 1;
+                    }
+                }
+            }
+            std.debug.print("Agent.other_has_some_matching_configuration.number_of_unique_hands:{}\n", .{arr_hand_count.items.len});
+        }
+
         var buffer: [100]u8 = undefined;
         var fba = std.heap.FixedBufferAllocator.init(&buffer);
         const allocator = fba.allocator();
+
         var permutation_iterator = PermutationIterator.HeapsAlgorithm.init(allocator, hinthand.len);
         defer permutation_iterator.deinit();
 
@@ -213,6 +290,14 @@ pub const KripkeStructure = struct {
     }
 
     pub fn deinit(self: Self) void {
+        var timer: std.time.Timer = undefined;
+        var start: u64 = undefined;
+        var end: u64 = undefined;
+        if (globals_test.KripkeStructure_deinit_time) {
+            timer = std.time.Timer.start() catch unreachable;
+            start = timer.read();
+        }
+
         for (self.worlds.items) |aaw| {
             for (aaw.items) |aw| {
                 aw.deinit();
@@ -220,6 +305,11 @@ pub const KripkeStructure = struct {
             aaw.deinit();
         }
         self.worlds.deinit();
+
+        if (globals_test.KripkeStructure_deinit_time) {
+            end = timer.read();
+            std.debug.print("KripkeStructure.deinit.time:{}\n", .{end - start});
+        }
     }
 
     pub fn access(self: Self, fixed_card_world_index: usize, for_player: usize, equivalence: usize) World {
