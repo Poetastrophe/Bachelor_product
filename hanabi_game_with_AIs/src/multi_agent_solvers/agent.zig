@@ -1,6 +1,6 @@
 const std = @import("std");
 const combination_helpers = @import("combination_helpers.zig");
-const Hanabi_game = @import("./../../hanabi_game_with_AIs/src/hanabi_board_game.zig");
+const Hanabi_game = @import("./../hanabi_board_game.zig");
 const CardWithHints = Hanabi_game.CardWithHints;
 const CurrentPlayerView = Hanabi_game.CurrentPlayerView;
 const CardSet = combination_helpers.CardSet;
@@ -15,9 +15,12 @@ const PermutationIterator = @import("PermutationIterator.zig");
 const seed = [_]u8{1} ** 32;
 var generator = std.rand.DefaultCsprng.init(seed);
 var prng = generator.random();
+const MAX_HAND_SIZE = 5 * 2;
+const MAX_DECK_SIZE = 50;
+const MAX_NUMBER_OF_PLAYERS = 5 * 2;
 
 //A world simply represent what is in the players hands.
-// Could possibly reduce it to a single hand since the way I represent it, it is obvious which hand that is fixed and which is not hmmm.
+
 pub const World = struct {
     const Self = @This();
     hand: CardSet,
@@ -25,11 +28,7 @@ pub const World = struct {
         return self.hand.toCardList(allocator);
     }
 };
-//How to represent hints?
-//Hints is something given to a card, so easiest thing is to use hand
-//representation from hanabi game and let that be the hint
 
-//From POV of a specific agent \__shrug_/
 pub const KripkeStructure = struct {
     const Self = @This();
     //Agent A: POV agent
@@ -37,9 +36,8 @@ pub const KripkeStructure = struct {
     //Encoding is worlds[specific_hand_of_pov_agent][agent_number][possible_hand_of_agent_B]
     //So from A POV there are of course worlds[1][A][0]. Will be the fixed card of worlds[1] because agent A can only imagine that A knows fixed world[1] given the fixed scenario of the hand.
     worlds: ArrayList(ArrayList(ArrayList(World))),
-    // It should init based on the cards of the players and on the discard pile...
+
     pub fn init(allocator: Allocator, initial_deck: CardSet, hanabi_pile: CardSet, discard_pile: CardSet, other_players: []CardSet, pov_player_handsize: u64, pov_player_index: usize) Self {
-        // _ = allocator;
         var hand_pool = initial_deck.setDifference(hanabi_pile).setDifference(discard_pile);
         for (other_players) |playerCardSet| {
             hand_pool = hand_pool.setDifference(playerCardSet);
@@ -70,10 +68,7 @@ pub const KripkeStructure = struct {
                         var current_player = other_players[correctedIndex(pov_player_index, p)];
                         hand_pool_for_ith_player = hand_pool_for_ith_player.setDifference(current_player);
                     }
-                    // std.debug.print("other_player[1]:{any}\n", .{other_players[1].card_encoding});
-                    // std.debug.print("i:{},povplayerpos:{any}, hand_pool_for_ith_player:{any}\n", .{ i, encoded_hand_for_pov_player, hand_pool_for_ith_player });
 
-                    // FIX for handsize
                     const other_player_possibilities = combination_helpers.distinct_combinations_assuming_encoding(hand_pool_for_ith_player.card_encoding, other_players[correctedIndex(pov_player_index, player_B)].getSize(), allocator);
                     defer other_player_possibilities.deinit();
                     for (other_player_possibilities.items) |other_player_hand_encoding| {
@@ -95,79 +90,65 @@ pub const KripkeStructure = struct {
         }
     }
 
-    pub fn remove_worlds_based_on_hints(self: *Self, players: []Player, pov_player_index: usize) void {
-        // red1, red, blue, green, unknown
-        // r1, ru, bu, gu, uu
-        // pool = {red1,red2,blue1,green1}
-        // red red blue green
-        // Cases
-        // Concrete cards that must be present
-        // Just remove those
-        // Vague color must be present
-        // Remove those
-        // Vague suit must be present
-        // Remove those
-        // And if any steps are unable to remove the specified card, then that state is invalid
+    pub fn remove_worlds_based_on_hints(self: *Self, players: []Player, pov_player_index: usize, tmp_calc_allocator: Allocator) void {
 
-        // }
-        // _ = players;
-        // _ = pov_player_index;
         // 0. Remove pov player states
         var pov_player_hand_raw = players[pov_player_index].hand;
 
-        // 200 should be more than enough for representing 2 hands
-        var buffer: [200]u8 = undefined;
-        var fba = std.heap.FixedBufferAllocator.init(&buffer);
-        const allocator = fba.allocator();
-
-        var pov_player_hinthand = ArrayList(Card).init(allocator);
+        var pov_player_hinthand = ArrayList(Card).initCapacity(tmp_calc_allocator, MAX_HAND_SIZE) catch unreachable;
         defer pov_player_hinthand.deinit();
 
-        for (pov_player_hand_raw) |card| {
-            pov_player_hinthand.append(card.hints);
+        for (pov_player_hand_raw.items) |card| {
+            pov_player_hinthand.append(card.hints) catch unreachable;
         }
 
         var i: usize = 0;
-        while (i < self.worlds.len) : (i += 1) {
-            const tail = self.worlds.len - i - 1;
-            const fixed_scenario = self.access(tail, pov_player_index, 0).toCardList(allocator);
+        const n_fixed_scen = self.worlds.items.len;
+        while (i < n_fixed_scen) : (i += 1) {
+            const tail = n_fixed_scen - i - 1;
+
+            const fixed_scenario = self.access(tail, pov_player_index, 0).toCardList(tmp_calc_allocator);
             defer fixed_scenario.deinit();
             if (!other_has_some_matching_configuration(pov_player_hinthand.items, fixed_scenario.items)) {
-                //cleanup
-                for (self.worlds.items[tail]) |pl| { //aaw
-                    for (pl) |aw| {
-                        aw.deinit();
-                    }
-                    pl.deinit();
+                for (self.worlds.items[tail].items) |aw| {
+                    aw.deinit();
                 }
                 self.worlds.items[tail].deinit();
-                self.worlds.popOrNull();
+                _ = self.worlds.swapRemove(tail);
             }
         }
 
         // 1. remove it for the other players
         // I know that I also go through the fixed scenarios, but I think it is ok (because there is only 1)
+
         i = 0;
-        while (i < self.worlds.len) : (i += 1) {
+        var loopcounter: u64 = 0;
+        while (i < self.worlds.items.len) : (i += 1) {
             var player_index: usize = 0;
             while (player_index < players.len) : (player_index += 1) {
                 var player_hand_raw = players[player_index].hand;
-                var player_hinthand = ArrayList(Card).init(allocator);
-                defer pov_player_hinthand.deinit();
 
-                for (player_hand_raw) |card| {
-                    player_hinthand.append(card.hints);
+                var player_hinthand = ArrayList(Card).initCapacity(tmp_calc_allocator, MAX_HAND_SIZE) catch unreachable;
+                defer player_hinthand.deinit();
+
+                for (player_hand_raw.items) |card| {
+                    player_hinthand.append(card.hints) catch unreachable;
                 }
 
                 var k: usize = 0;
 
-                while (k < self.worlds.items[i].items[player_index].len) {
-                    const tail = self.worlds.items[i].items[player_index].len - k - 1;
-                    const imagined_scenario = self.access(i, player_index, tail).toCardList(allocator);
+                const n_imagined_worlds = self.worlds.items[i].items[player_index].items.len;
+                while (k < n_imagined_worlds) : (k += 1) {
+                    const tail = n_imagined_worlds - k - 1;
+
+                    const imagined_scenario = self.access(i, player_index, tail).toCardList(tmp_calc_allocator);
                     defer imagined_scenario.deinit();
                     if (!other_has_some_matching_configuration(player_hinthand.items, imagined_scenario.items)) {
-                        self.worlds.items[i].items[player_index].popOrNull();
+                        _ = self.worlds.items[i].items[player_index].swapRemove(tail);
                     }
+
+                    loopcounter += 1;
+                    if (loopcounter % 10000 == 0) {}
                 }
             }
         }
@@ -175,19 +156,16 @@ pub const KripkeStructure = struct {
         //2. remove any configuration that resulted in an empty set
 
         i = 0;
-        while (i < self.worlds.len) : (i += 1) {
-            const tail = self.worlds.len - 1 - i;
+        while (i < self.worlds.items.len) : (i += 1) {
+            const tail = self.worlds.items.len - 1 - i;
             var player_index: usize = 0;
             while (player_index < players.len) : (player_index += 1) {
-                if (self.worlds.items[i].items[player_index] == 0) {
-                    for (self.worlds.items[tail]) |pl| { //aaw
-                        for (pl) |aw| {
-                            aw.deinit();
-                        }
+                if (self.worlds.items[i].items[player_index].items.len == 0) {
+                    for (self.worlds.items[tail].items) |pl| { //aaw
                         pl.deinit();
                     }
                     self.worlds.items[tail].deinit();
-                    self.worlds.popOrNull();
+                    _ = self.worlds.swapRemove(tail);
                 }
             }
         }
@@ -200,11 +178,12 @@ pub const KripkeStructure = struct {
         if (hinthand.len != other.len) {
             return false;
         }
-        //A deck has at most 50 cards so the hands cannot be more than 100 cards big
+
         var buffer: [100]u8 = undefined;
         var fba = std.heap.FixedBufferAllocator.init(&buffer);
         const allocator = fba.allocator();
         var permutation_iterator = PermutationIterator.HeapsAlgorithm.init(allocator, hinthand.len);
+        defer permutation_iterator.deinit();
 
         while (permutation_iterator.next()) |perm| {
             if (is_matching_configuration(hinthand, other, perm)) {
@@ -218,14 +197,14 @@ pub const KripkeStructure = struct {
     pub fn is_matching_configuration(hinthand: []Card, other: []Card, permutation: []u8) bool {
         var permutation_is_matching = true;
         for (hinthand) |_, i| {
-            var current_card = hinthand[permutation[i]];
+            var current_card = hinthand[i];
             if (current_card.color != Color.unknown) {
-                if (current_card.color != other[i].color) {
+                if (current_card.color != other[permutation[i]].color) {
                     permutation_is_matching = false;
                 }
             }
-            if (current_card.value != Color.unknown) {
-                if (current_card.value != other[i].value) {
+            if (current_card.value != Value.unknown) {
+                if (current_card.value != other[permutation[i]].value) {
                     permutation_is_matching = false;
                 }
             }
@@ -233,7 +212,7 @@ pub const KripkeStructure = struct {
         return permutation_is_matching;
     }
 
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: Self) void {
         for (self.worlds.items) |aaw| {
             for (aaw.items) |aw| {
                 aw.deinit();
@@ -278,7 +257,7 @@ const CardWithStates = struct {
         return Self{ .card = card, .is_playable = false, .is_unplayable = false, .is_dispensible_and_duplicate_exists_in_some_hand = false, .not_is_dispensible_and_duplicate_exists_in_some_hand = false, .is_dispensible_and_duplicate_exists_in_the_deck = false, .not_is_dispensible_and_duplicate_exists_in_the_deck = false, .is_dispensible = false, .is_indispensible = false, .is_unique = false, .is_duplicate = false, .is_dead = false, .is_alive = false };
     }
 };
-const Agent = struct {
+pub const Agent = struct {
     const Self = @This();
     player_id: u64,
     pov_kripke_structure: KripkeStructure,
@@ -287,10 +266,8 @@ const Agent = struct {
 
     // Should work for all hands
     // Should not remove anything
-    pub fn updateCardStates(self: *Self) void {
-        var buffer: [200]u8 = undefined;
-        var fba = std.heap.FixedBufferAllocator.init(&buffer);
-        const allocator = fba.allocator();
+    pub fn updateCardStates(self: *Self, tmp_calc_allocator: Allocator) void {
+        const allocator = tmp_calc_allocator;
 
         // Go through all fixed scenarios
         // For each matching configuration with your hinthand, figure out
@@ -299,94 +276,103 @@ const Agent = struct {
         for (self.hand.items) |_, i| {
             self.hand.items[i] = CardWithStates.create(self.hand.items[i].card);
         }
-        // hinthand
 
-        var hinthand = ArrayList(Card).init(allocator);
-        for (self.hand) |cardwithstates| {
-            hinthand.append(cardwithstates.card);
+        var hinthand = ArrayList(Card).initCapacity(allocator, MAX_HAND_SIZE) catch unreachable;
+        defer hinthand.deinit();
+        for (self.hand.items) |cardwithstates| {
+            hinthand.append(cardwithstates.card) catch unreachable;
         }
-        // Other player hands
+
         var other_player_hands_set = CardSet.emptySet();
         for (self.view.players.items) |p, i| {
             if (i == self.player_id) {
                 continue;
             }
-            for (p.items) |cardwithhints| {
+            for (p.hand.items) |cardwithhints| {
                 other_player_hands_set = other_player_hands_set.insertCard(cardwithhints.card);
             }
         }
 
         var i: usize = 0;
-        while (i < self.pov_kripke_structure.worlds.len) : (i += 1) {
+        while (i < self.pov_kripke_structure.worlds.items.len) : (i += 1) {
             //0. find a matching hand (there is always one)
 
             const handsize = self.hand.items.len;
+
             var permutation_iterator = PermutationIterator.HeapsAlgorithm.init(allocator, handsize);
             defer permutation_iterator.deinit();
             while (permutation_iterator.next()) |perm| {
-                const fixed_scenario = self.world.access(i, self.player_id, 0).toCardList(allocator);
+                const fixed_scenario = self.pov_kripke_structure.access(i, self.player_id, 0).toCardList(allocator);
                 defer fixed_scenario.deinit();
-                if (KripkeStructure.is_matching_configuration(hinthand.items, fixed_scenario, perm)) {
+
+                if (KripkeStructure.is_matching_configuration(hinthand.items, fixed_scenario.items, perm)) {
                     var k: usize = 0;
                     while (k < handsize) : (k += 1) {
                         const kth_card = fixed_scenario.items[perm[k]];
+                        if (@enumToInt(self.hand.items[k].card.value) == 0) {
+                            std.debug.print("should be 1:{any}\n", .{kth_card});
+                        }
 
                         // Decide whether it is playable
                         const last_index = self.view.hanabi_piles[@enumToInt(kth_card.color)].items.len;
                         if (last_index == @enumToInt(kth_card.value)) {
-                            self.cardwithstates.items[k].is_playable = true;
+                            self.hand.items[k].is_playable = true;
                         } else {
-                            self.cardwithstates.items[k].is_unplayable = true;
+                            if (@enumToInt(self.hand.items[k].card.value) == 0) {
+                                std.debug.print("Setting unplayable based on{}!={}\n", .{ @enumToInt(self.hand.items[k].card.value), @enumToInt(kth_card.value) });
+                            }
+                            self.hand.items[k].is_unplayable = true;
                         }
 
                         // Decide whether it is unique
                         // check first if it is the only one in the hand.
                         var dispensible_in_deck = false;
                         var dispensible_in_hand = false;
-                        const fixed_scenario_cardset = CardSet.createUsingSliceOfCards(fixed_scenario);
+                        const fixed_scenario_cardset = CardSet.createUsingSliceOfCards(fixed_scenario.items);
                         var index_of_card = CardSet.cardToIdPosition(kth_card);
                         const hands_set = fixed_scenario_cardset.add(other_player_hands_set);
                         if (hands_set.get(index_of_card) > 1) {
-                            self.cardwithstates.items[k].is_dispensible_and_duplicate_exists_in_the_hand = true;
+                            self.hand.items[k].is_dispensible_and_duplicate_exists_in_some_hand = true;
                             dispensible_in_hand = true;
                         } else {
-                            self.cardwithstates.items[k].not_is_dispensible_and_duplicate_exists_in_the_hand = true;
+                            self.hand.items[k].not_is_dispensible_and_duplicate_exists_in_some_hand = true;
                         }
 
-                        const left_in_the_deck = self.view.initial_deck.setDifference(hands_set).setDifference(self.view.hanabi_pile).setDifference(self.view.discard_pile);
+                        var left_in_the_deck = CardSet.createUsingSliceOfCards(self.view.initial_deck.items).setDifference(hands_set).setDifference(CardSet.createUsingSliceOfCards(self.view.discard_pile.items));
+                        for (self.view.hanabi_piles) |pile| {
+                            left_in_the_deck = left_in_the_deck.setDifference(CardSet.createUsingSliceOfCards(pile.items));
+                        }
 
                         if (left_in_the_deck.get(index_of_card) > 0) {
                             dispensible_in_deck = true;
-                            self.cardwithstates.items[k].is_dispensible_and_duplicate_exists_in_the_deck = true;
+                            self.hand.items[k].is_dispensible_and_duplicate_exists_in_the_deck = true;
                         } else {
-                            self.cardwithstates.items[k].not_is_dispensible_and_duplicate_exists_in_the_deck = true;
+                            self.hand.items[k].not_is_dispensible_and_duplicate_exists_in_the_deck = true;
                         }
 
                         if (dispensible_in_deck or dispensible_in_hand) {
-                            self.cardwithstates.items[k].is_dispensible = true;
+                            self.hand.items[k].is_dispensible = true;
                         } else {
-                            self.cardwithstates.items[k].is_indispensible = true;
+                            self.hand.items[k].is_indispensible = true;
                         }
 
                         //decide dead or alive
                         if (last_index <= @enumToInt(kth_card.value)) {
-                            self.cardwithstates.items[k].is_alive = true;
+                            self.hand.items[k].is_alive = true;
                         } else {
-                            self.cardwithstates.items[k].is_dead = true;
+                            self.hand.items[k].is_dead = true;
                         }
                     }
                 }
             }
-            // PermutationIterator.HeapsAlgorithm
-
         }
     }
     pub fn insert_cards_into_hand(self: *Self, current_player_view: CurrentPlayerView) void {
         std.debug.assert(current_player_view.current_player == self.player_id);
         self.view = current_player_view;
-        self.cardwithstates.clearRetainingCapacity();
-        for (self.view.players.items[self.player_id].hand) |cardwithhints| {
-            self.cardwithstates.append(CardWithStates.create(cardwithhints.hints));
+        self.hand.clearRetainingCapacity();
+        for (self.view.players.items[self.player_id].hand.items) |cardwithhints| {
+            self.hand.append(CardWithStates.create(cardwithhints.hints)) catch unreachable;
         }
     }
 
@@ -395,45 +381,36 @@ const Agent = struct {
     //It is fair to assume that every time a player needs to play she has to update her entire game state, since there has been played several cards or given some hints which significantly reduces the state space.
     // You could argue that if there has only been given hints then you don't need to generate anew, but if you expect to generate anew almost every round then that is not very justified and is therefore a premature optimization.
     pub fn init(player_id: u64, view: CurrentPlayerView, allocator: Allocator) Self {
-
-        // unreachable;
-        // player_id: u64,
-        // pov_kripke_structure: KripkeStructure,
-        // hand: ArrayList(CardWithStates), //It only sees what is hinted about its cards, indexes should match the game state :)
-        // view: CurrentPlayerView,
-
-        // pub fn init(allocator: Allocator, initial_deck: CardSet, hanabi_pile: CardSet, discard_pile: CardSet, other_players: []CardSet, pov_player_handsize: u64, pov_player_index: usize) Self {
-
-        // var buffer: [200]u8 = undefined;
-        // var fba = std.heap.FixedBufferAllocator.init(&buffer);
-        // const allocator = fba.allocator();
-        var other_players = ArrayList(CardSet).init(allocator);
+        var other_players = ArrayList(CardSet).initCapacity(allocator, MAX_NUMBER_OF_PLAYERS) catch unreachable;
         defer other_players.deinit();
         for (view.players.items) |player, i| {
             if (i == player_id) {
                 continue;
             }
-            var hand = ArrayList(Card).init(allocator);
+            var hand = ArrayList(Card).initCapacity(allocator, MAX_HAND_SIZE) catch unreachable;
             defer hand.deinit();
             for (player.hand.items) |cardwithhints| {
                 const card = cardwithhints.card;
-                hand.append(card);
+                hand.append(card) catch unreachable;
             }
-            other_players.append(CardSet.createUsingSliceOfCards(hand.items));
+            other_players.append(CardSet.createUsingSliceOfCards(hand.items)) catch unreachable;
+        }
+        var hanabi_piles_set = CardSet.emptySet();
+        for (view.hanabi_piles) |colorHeap| {
+            hanabi_piles_set = hanabi_piles_set.add(CardSet.createUsingSliceOfCards(colorHeap.items));
         }
 
-        var pov_kripke_structure = KripkeStructure.init(allocator, view.initial_deck, view.hanabi_pile, view.discard_pile, other_players, view.players.items[player_id].items.len, player_id);
+        var pov_kripke_structure = KripkeStructure.init(allocator, CardSet.createUsingSliceOfCards(view.initial_deck.items), hanabi_piles_set, CardSet.createUsingSliceOfCards(view.discard_pile.items), other_players.items, view.players.items[player_id].hand.items.len, player_id);
 
-        // pub fn remove_worlds_based_on_hints(self: *Self, players: []Player, pov_player_index: usize) void {
-        pov_kripke_structure.remove_worlds_based_on_hints(view.players.items, player_id);
+        pov_kripke_structure.remove_worlds_based_on_hints(view.players.items, player_id, allocator);
 
         var res = Self{ .player_id = player_id, .pov_kripke_structure = pov_kripke_structure, .hand = undefined, .view = view };
-        res.hand = ArrayList(CardWithStates).init(allocator);
-        res.insert_cards_into_hand();
-        res.updateCardStates();
+        res.hand = ArrayList(CardWithStates).initCapacity(allocator, MAX_HAND_SIZE) catch unreachable;
+        res.insert_cards_into_hand(res.view);
+        res.updateCardStates(allocator);
         return res;
     }
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: Self) void {
         self.pov_kripke_structure.deinit();
         self.hand.deinit();
         self.view.deinit();
@@ -445,6 +422,7 @@ const Agent = struct {
     pub fn make_move(self: Self, game: *Game) void {
         // 1. Play the playable card with lowest index.
         // It has to be beyond doubt that this card can be played
+        std.debug.print("player {}, making a move...", .{self.player_id});
         var maybe_index_to_play: ?usize = null;
         for (self.hand.items) |cws, i| {
             if (cws.is_playable and !cws.is_unplayable) {
@@ -454,12 +432,13 @@ const Agent = struct {
         }
 
         if (maybe_index_to_play) |index_to_play| {
+            std.debug.print("1.playing card\n", .{});
             game.play(index_to_play);
             return;
         }
 
         // 2. If there are less than 5 cards in the discard pile, discard the dead card with lowest index
-        if (self.view.discard_pile.items.len < 5 and self.view.blue_tokens != self.Hanabi_game.INITIAL_BLUE_TOKENS) {
+        if (self.view.discard_pile.items.len < 5 and self.view.blue_tokens != Hanabi_game.INITIAL_BLUE_TOKENS) {
             for (self.hand.items) |cws, i| {
                 if (cws.is_dead and !cws.is_alive) {
                     maybe_index_to_play = i;
@@ -467,6 +446,7 @@ const Agent = struct {
                 }
             }
             if (maybe_index_to_play) |index_to_play| {
+                std.debug.print("2.discarding dead card\n", .{});
                 game.discard(index_to_play);
                 return;
             }
@@ -475,6 +455,7 @@ const Agent = struct {
         // 3. If there are hint tokens available, give a hint.
         if (self.view.blue_tokens > 0) {
             if (self.hintRandomThatIsNotAlreadyKnown(game)) {
+                std.debug.print("3.Giving hint\n", .{});
                 return;
             }
         }
@@ -482,12 +463,13 @@ const Agent = struct {
         // 4. Discard the dead card with lowest index.
         if (self.view.blue_tokens != Hanabi_game.INITIAL_BLUE_TOKENS) {
             for (self.hand.items) |cws, i| {
-                if (cws.is_dead and !cws.alive) {
+                if (cws.is_dead and !cws.is_alive) {
                     maybe_index_to_play = i;
                     break;
                 }
             }
             if (maybe_index_to_play) |index_to_play| {
+                std.debug.print("4.Discarding card\n", .{});
                 game.discard(index_to_play);
                 return;
             }
@@ -502,6 +484,7 @@ const Agent = struct {
                 }
             }
             if (maybe_index_to_play) |index_to_play| {
+                std.debug.print("5.Discarding two hand duplicate card\n", .{});
                 game.discard(index_to_play);
                 return;
             }
@@ -516,6 +499,7 @@ const Agent = struct {
                 }
             }
             if (maybe_index_to_play) |index_to_play| {
+                std.debug.print("6.Discarding dispensible\n", .{});
                 game.discard(index_to_play);
                 return;
             }
@@ -524,49 +508,55 @@ const Agent = struct {
         // 7. Discard card C1.
         if (self.view.blue_tokens != Hanabi_game.INITIAL_BLUE_TOKENS) {
             // TODO 1:Should I skip turn if there are no cards to play?
+            std.debug.print("7.Discarding C1\n", .{});
             game.discard(0);
             return;
         }
 
         // Just for good measure, I can also play
+        std.debug.print("8.Playing C1\n", .{});
         game.play(0);
         return;
     }
 
     const HintToGive = struct {
         to_player: usize,
-        value_or_color: union(enum) {
-            value: Value,
-            color: Color,
-        },
+        value_or_color: Value_or_color,
+    };
+    const Value_or_color = union(enum) {
+        value: Value,
+        color: Color,
     };
     // True if you were able to give a hint,
     // false otherwise.
-    pub fn hintRandomThatIsNotAlreadyKnown(self: *Self, game: *Game) bool {
-        var buffer: [200]u8 = undefined;
+    pub fn hintRandomThatIsNotAlreadyKnown(self: Self, game: *Game) bool {
+        var buffer: [1000]u8 = undefined;
         var fba = std.heap.FixedBufferAllocator.init(&buffer);
         const allocator = fba.allocator();
 
         var possible_hints = ArrayList(HintToGive).init(allocator);
+        defer possible_hints.deinit();
         for (self.view.players.items) |p, i| {
             if (i == self.player_id) {
                 continue;
             }
-            for (p.cardwithhints.items) |cwh| {
-                if (cwh.hints.color == Color.unknown) {
-                    possible_hints.append(HintToGive{ .to_player = i, .value_or_color = cwh.card.color });
-                }
+            for (p.hand.items) |cwh| {
                 if (cwh.hints.value == Value.unknown) {
-                    possible_hints.append(HintToGive{ .to_player = i, .value_or_color = cwh.card.value });
+                    if (self.view.hanabi_piles[@enumToInt(cwh.card.color)].items.len == @enumToInt(cwh.card.value) or @enumToInt(cwh.card.value) == 4) {
+                        possible_hints.append(HintToGive{ .to_player = i, .value_or_color = Value_or_color{ .value = cwh.card.value } }) catch unreachable;
+                    }
+                } else {
+                    if (cwh.hints.color == Color.unknown) {
+                        if (self.view.hanabi_piles[@enumToInt(cwh.card.color)].items.len == @enumToInt(cwh.card.value)) {
+                            possible_hints.append(HintToGive{ .to_player = i, .value_or_color = Value_or_color{ .color = cwh.card.color } }) catch unreachable;
+                        }
+                    }
                 }
             }
         }
         if (possible_hints.items.len == 0) {
             return false;
         }
-
-        // I could try to remove duplicates but now I just pick a random one.
-        // The method is not that good to begin with so no need to do extra work
 
         var hint_to_give = possible_hints.items[prng.uintLessThan(u64, possible_hints.items.len)];
         switch (hint_to_give.value_or_color) {
@@ -575,9 +565,6 @@ const Agent = struct {
         }
         return true;
     }
-
-    // A list of function pointers, that takes the Agent and the Game and returns true if it could perform the action specified by the list, otherwise it returns false and goes to next element. It is given that an action must be performed :)
-    //Initially it can be just if else and not function pointers
 };
 
 test "Three wise men simulation :)" {

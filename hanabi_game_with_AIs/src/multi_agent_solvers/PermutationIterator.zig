@@ -8,7 +8,7 @@ const print = std.debug.print;
 // self.arr will always be the internal representation of the current permutation and
 // it will not return a copy of the answer, but only a slice to self.arr
 
-const HeapsAlgorithm = struct {
+pub const HeapsAlgorithm = struct {
     const Self = @This();
     stack_state: ArrayList(u8),
     arr: ArrayList(u8),
@@ -27,7 +27,7 @@ const HeapsAlgorithm = struct {
 
         return Self{ .stack_state = stack_state, .arr = arr };
     }
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: Self) void {
         self.stack_state.deinit();
         self.arr.deinit();
     }

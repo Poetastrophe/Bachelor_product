@@ -15,12 +15,16 @@ pub fn build(b: *std.build.Builder) void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.install();
+    exe.linkLibC();
 
     const run_cmd = exe.run();
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
+
+    // const log_step = b.step("log", "Produce timer logs for each method");
+    // log_step.makeFn
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
@@ -33,7 +37,38 @@ pub fn build(b: *std.build.Builder) void {
     hanabi_tests.setTarget(target);
     hanabi_tests.setBuildMode(mode);
 
-    const test_step = b.step("test", "Run unit tests");
+    const combi_test = b.addTest("src/multi_agent_solvers/combination_helpers.zig");
+    combi_test.setTarget(target);
+    combi_test.setBuildMode(mode);
+
+    const agent_test = b.addTest("src/multi_agent_solvers/agent.zig");
+    agent_test.setTarget(target);
+    agent_test.setBuildMode(mode);
+
+    const perm_test = b.addTest("src/multi_agent_solvers/PermutationIterator.zig");
+    // agent_test.linkLibC();
+    perm_test.setTarget(target);
+    perm_test.setBuildMode(mode);
+
+    const test_step = b.step("test", "Run fast unit tests");
     test_step.dependOn(&exe_tests.step);
     test_step.dependOn(&hanabi_tests.step);
+    test_step.dependOn(&exe_tests.step);
+    test_step.dependOn(&combi_test.step);
+    test_step.dependOn(&agent_test.step);
+    test_step.dependOn(&perm_test.step);
+
+    const big_test = b.addTest("src/bigtest.zig");
+
+    big_test.linkLibC();
+    big_test.setTarget(target);
+    big_test.setBuildMode(mode);
+
+    // const initial_state_test = b.addTest("src/tests/initial_state_test.zig");
+    // initial_state_test.setTarget(target);
+    // initial_state_test.setBuildMode(mode);
+
+    const big_test_step = b.step("big", "Run slow but highly optimized big tests");
+    big_test_step.dependOn(&big_test.step);
+    // big_test_step.dependOn(&initial_state_test.step);
 }

@@ -3,7 +3,7 @@ const sort = std.sort;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const math = std.math;
-const Hanabi_game = @import("./../../hanabi_game_with_AIs/src/hanabi_board_game.zig");
+const Hanabi_game = @import("./../hanabi_board_game.zig");
 const Card = Hanabi_game.Card;
 const CardWithHints = Hanabi_game.CardWithHints;
 const CardEncodingArrSize = 25;
@@ -20,13 +20,6 @@ const CardEncoding = [CardEncodingArrSize]u2; //TODO 1: encoding actually not
 const CardEncodingSlice = []u2;
 
 fn combinations(comptime NumberOfDistinctElements: u64, taken_into_account: []u64, distinct_pool: []u64, sumarr: []u64, k: u64, cur_id: usize, acc: *ArrayList([NumberOfDistinctElements]u64)) void {
-    // _ = taken_into_account;
-    // _ = distinct_pool;
-    // _ = sum_arr;
-    // _ = cur_id;
-    // _ = acc;
-    // _ = k;
-
     if (k == 0) {
         var tmp: [NumberOfDistinctElements]u64 = undefined;
         std.mem.copy(u64, &tmp, taken_into_account);
@@ -36,9 +29,6 @@ fn combinations(comptime NumberOfDistinctElements: u64, taken_into_account: []u6
         }
         return;
     }
-    // if (cur_id == taken_into_account.len) {
-    // return;
-    // }
 
     const take = math.min(distinct_pool[cur_id], k);
 
@@ -56,13 +46,7 @@ fn combinations(comptime NumberOfDistinctElements: u64, taken_into_account: []u6
 }
 
 pub fn distinct_combinations_assuming_encoding(elements: CardEncoding, choose_k: u64, allocator: Allocator) ArrayList(CardEncoding) {
-    // _ = choose_k;
-    // _ = NumberOfDistinctElements;
-    // _ = allocator;
     var distinct_pool: CardEncoding = elements;
-    // var fba = std.heap.FixedBufferAllocator.init(&distinct_elements_pool_buffer);
-    // var distinct_pool = ArrayList(u64).init(fba);
-    // std.debug.print("distinct pool:{any}\n", .{distinct_pool});
 
     var sumarr = [_]u64{0} ** (CardEncodingArrSize + 1);
 
@@ -72,7 +56,6 @@ pub fn distinct_combinations_assuming_encoding(elements: CardEncoding, choose_k:
         const n = CardEncodingArrSize;
         sumarr[n - 1 - j] = sumarr[n - j] + distinct_pool[n - 1 - j];
     }
-    // std.debug.print("summarr:{any}\n", .{sumarr});
 
     var taken_into_account = [_]u2{0} ** CardEncodingArrSize;
     var acc = ArrayList(CardEncoding).init(allocator);
@@ -81,13 +64,6 @@ pub fn distinct_combinations_assuming_encoding(elements: CardEncoding, choose_k:
 }
 
 pub fn combinations_assuming_encoding(taken_into_account: CardEncodingSlice, distinct_pool: CardEncodingSlice, sumarr: []u64, k: u64, cur_id: usize, acc: *ArrayList(CardEncoding)) void {
-    // _ = taken_into_account;
-    // _ = distinct_pool;
-    // _ = sum_arr;
-    // _ = cur_id;
-    // _ = acc;
-    // _ = k;
-
     if (k == 0) {
         var tmp: CardEncoding = undefined;
         std.mem.copy(u2, &tmp, taken_into_account);
@@ -97,9 +73,6 @@ pub fn combinations_assuming_encoding(taken_into_account: CardEncodingSlice, dis
         }
         return;
     }
-    // if (cur_id == taken_into_account.len) {
-    // return;
-    // }
 
     const take = @truncate(u2, math.min(distinct_pool[cur_id], k)); //Since I know the encoding is u2, I can always know that it can fit into u2
     const nonOverflowTake: u32 = take;
@@ -121,15 +94,11 @@ pub fn combinations_assuming_encoding(taken_into_account: CardEncodingSlice, dis
 // Reason: Easier to create a pipeline, as well as splitting up the work between
 // multiple threads. If these needs to be converted into cards
 pub fn distinct_combinations(elements: []u64, choose_k: u64, comptime NumberOfDistinctElements: u64, allocator: Allocator) ArrayList([NumberOfDistinctElements]u64) {
-    // _ = choose_k;
-    // _ = NumberOfDistinctElements;
-    // _ = allocator;
     const asc_u64 = sort.asc(u64);
     sort.sort(u64, elements, {}, asc_u64);
-    // std.debug.print("sorted:{any}\n", .{elements});
+
     var distinct_pool: [NumberOfDistinctElements]u64 = undefined;
-    // var fba = std.heap.FixedBufferAllocator.init(&distinct_elements_pool_buffer);
-    // var distinct_pool = ArrayList(u64).init(fba);
+
     var counter: u64 = 0;
     var dp_i: usize = 0;
     var i: usize = 1;
@@ -145,7 +114,6 @@ pub fn distinct_combinations(elements: []u64, choose_k: u64, comptime NumberOfDi
     if (elements[i - 1] != elements[i - 2]) {
         distinct_pool[dp_i] = 1;
     }
-    // std.debug.print("distinct pool:{any}\n", .{distinct_pool});
 
     var sumarr = [_]u64{0} ** (NumberOfDistinctElements + 1);
 
@@ -155,22 +123,12 @@ pub fn distinct_combinations(elements: []u64, choose_k: u64, comptime NumberOfDi
         const n = NumberOfDistinctElements;
         sumarr[n - 1 - j] = sumarr[n - j] + distinct_pool[n - 1 - j];
     }
-    // std.debug.print("summarr:{any}\n", .{sumarr});
 
     var taken_into_account = [_]u64{0} ** NumberOfDistinctElements;
     var acc = ArrayList([NumberOfDistinctElements]u64).init(allocator);
     combinations(NumberOfDistinctElements, &taken_into_account, &distinct_pool, &sumarr, choose_k, 0, &acc);
     return acc;
 }
-
-// test "combinations" {
-//     var elems = [_]u64{ 5, 1, 1, 2, 3, 5 };
-//     var arr = distinct_combinations(&elems, 3, 4, std.testing.allocator);
-//     defer arr.deinit();
-//     for (arr.items) |a| {
-//         std.debug.print("\nhmm:{any}\n", .{a});
-//     }
-// }
 
 fn testBigTimeCombinations() void {
     const k = 4;
@@ -190,9 +148,6 @@ fn testBigTimeCombinations() void {
     var arr2 = distinct_combinations(allCards.items, k, 25, std.testing.allocator);
     defer arr2.deinit();
 
-    // for (arr2.items) |elem| {
-    // std.debug.print("val:{any}\n", .{elem});
-    // }
     std.debug.print("\nlength:{}\n", .{arr2.items.len});
 }
 pub fn initial_state_test() void {
@@ -201,8 +156,7 @@ pub fn initial_state_test() void {
     const k = 4;
     const cards = [_]u64{ 1, 2, 3, 4, 5 };
     const count = [_]u64{ 3, 2, 2, 2, 1 };
-    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    // var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+
     var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
     var allCards = ArrayList(u64).init(arena.allocator());
     defer allCards.deinit();
@@ -218,11 +172,6 @@ pub fn initial_state_test() void {
     var arr2 = distinct_combinations(allCards.items, k, 25, arena.allocator());
     defer arr2.deinit();
 
-    // for (arr2.items) |elem| {
-    //     std.debug.print("val:{any}\n", .{elem});
-    // }
-    // std.debug.print("\nlength:{}\n", .{arr2.items.len});
-
     std.debug.print("\n\nnanoseconds:{}\n", .{timer.read()});
 }
 
@@ -234,8 +183,8 @@ pub const CardSet = struct {
 
     pub fn add(self: Self, other: Self) Self {
         var res: CardSet = self;
-        for (other) |elem, i| {
-            res[i] += elem;
+        for (other.card_encoding) |elem, i| {
+            res.card_encoding[i] += elem;
         }
         return res;
     }
@@ -291,12 +240,12 @@ pub const CardSet = struct {
         for (self.card_encoding) |card_count, card_id| {
             var i: u64 = 0;
             while (i < card_count) : (i += 1) {
-                res.append(idPositionToCard(card_id));
+                res.append(idPositionToCard(card_id)) catch unreachable;
             }
         }
         return res;
     }
-    pub fn idPositionToCard(index: u5) Card {
+    pub fn idPositionToCard(index: usize) Card {
         const colorindex = index / COLOR_N;
         const valueindex = index % VALUE_N;
         const color = @intToEnum(Hanabi_game.Color, colorindex);
@@ -304,29 +253,30 @@ pub const CardSet = struct {
         return Card{ .color = color, .value = value };
     }
     pub fn cardToIdPosition(card: Card) u5 {
-        const color: u5 = COLOR_N * switch (card.color) {
-            .red => 0,
-            .blue => 1,
-            .green => 2,
-            .yellow => 3,
-            .white => 4,
+        var color: u5 = undefined;
+        switch (card.color) {
+            .red => color = 0,
+            .blue => color = 1,
+            .green => color = 2,
+            .yellow => color = 3,
+            .white => color = 4,
             .unknown => unreachable,
-        };
+        }
         const value: u5 = switch (card.value) {
-            .one => 1,
-            .two => 2,
-            .three => 3,
-            .four => 4,
-            .five => 5,
+            .one => 0,
+            .two => 1,
+            .three => 2,
+            .four => 3,
+            .five => 4,
             .unknown => unreachable,
         };
-        return color + value;
+        return color * COLOR_N + value;
     }
 
     pub fn createUsingSliceOfCards(cards: []Card) Self {
         var res = CardSet.emptySet();
         for (cards) |c| {
-            res.insertCard(c);
+            res = res.insertCard(c);
         }
         return res;
     }
@@ -368,15 +318,13 @@ test "CardEncoding combinations " {
     var timer = try std.time.Timer.start();
     var res = distinct_combinations_assuming_encoding(allcards.card_encoding, 6, std.testing.allocator);
     defer res.deinit();
-    // try std.testing.expect(res.items.len == 18480);
-    std.debug.print("\n\nnanosecondsmorecompact:{}\n", .{timer.read()});
 
-    // std.debug.print("\nrem:\n{any}\n", .{remaining});
+    std.debug.print("\n\nnanosecondsmorecompact:{}\n", .{timer.read()});
 }
 
 test "combinations big time" {
     var timer = try std.time.Timer.start();
     testBigTimeCombinations();
-    // var div: u64 = 1E9;
+
     std.debug.print("\n\nnanoseconds:{}\n", .{timer.read()});
 }

@@ -5,13 +5,13 @@ const Allocator = std.mem.Allocator;
 const expect = std.testing.expect;
 const eql = std.mem.eql;
 
-const NUMBER_OF_CARDS = 5 * 3 + 5 * 2 * 3 + 5;
-const INITIAL_BLUE_TOKENS = 8;
-const INITIAL_BLACK_TOKENS = 4;
-const NUMBER_HANABI_PILES = 5;
+pub const NUMBER_OF_CARDS = 5 * 3 + 5 * 2 * 3 + 5;
+pub const INITIAL_BLUE_TOKENS = 8;
+pub const INITIAL_BLACK_TOKENS = 4;
+pub const NUMBER_HANABI_PILES = 5;
 const DRAW_IF_LESS_THAN_4_PLAYERS = 5;
 const DRAW_IF_MORE_THAN_3_PLAYERS = 4;
-const Color = enum {
+pub const Color = enum {
     red,
     blue,
     green,
@@ -29,7 +29,7 @@ const Color = enum {
         } catch unreachable;
     }
 };
-const Value = enum {
+pub const Value = enum {
     one,
     two,
     three,
@@ -48,7 +48,7 @@ const Value = enum {
         } catch unreachable;
     }
 };
-const Card = struct {
+pub const Card = struct {
     const Self = @This();
     color: Color,
     value: Value,
@@ -77,7 +77,7 @@ const CardWithHints = struct {
     hints: Card, // TODO: could be necessary to also hint about which player gave the hint and when. but alas that is too much. 4 me.
 };
 
-const Player = struct {
+pub const Player = struct {
     const Self = @This();
     hand: ArrayList(CardWithHints),
     pub fn to_string_no_hints(self: Self, writer: anytype) void {
@@ -94,12 +94,20 @@ const Player = struct {
             _ = writer.write(" ") catch unreachable;
         }
     }
-    pub fn deinit(self: *Self) void {
+    pub fn init(allocator: Allocator, hand: []CardWithHints) Self {
+        var allochand = ArrayList(CardWithHints).init(allocator);
+        for (hand) |card| {
+            allochand.append(card) catch unreachable;
+        }
+        return Self{ .hand = allochand };
+    }
+
+    pub fn deinit(self: Self) void {
         self.hand.deinit();
     }
 };
 
-const CurrentPlayerView = struct {
+pub const CurrentPlayerView = struct {
     const Self = @This();
     players: ArrayList(Player),
     initial_deck: ArrayList(Card),
@@ -109,8 +117,8 @@ const CurrentPlayerView = struct {
     blue_tokens: u64,
     black_tokens: u64,
     game_is_over: bool,
-    rounds_left: i64,
-    //It will not show the current player, nor the deck, which are not visible from the players perspective
+    rounds_left: u64,
+
     pub fn init(allocator: Allocator, game: Game) Self {
         var discard_pile = ArrayList(Card).init(allocator);
         _ = discard_pile.appendSlice(game.discard_pile.items) catch unreachable;
@@ -119,26 +127,34 @@ const CurrentPlayerView = struct {
         var i: u64 = 0;
         while (i < NUMBER_HANABI_PILES) : (i += 1) {
             var tmp = ArrayList(Card).init(allocator);
-            tmp.appendSlice(game.hanabi_piles[i].items);
+            tmp.appendSlice(game.hanabi_piles[i].items) catch unreachable;
             hanabi_piles[i] = tmp;
         }
 
         var players = ArrayList(Player).init(allocator);
 
+        for (game.players.items) |p| {
+            p.to_string(std.io.getStdOut().writer());
+        }
+
+        i = 0;
         while (i < game.players.items.len) : (i += 1) {
-            var tmp = ArrayList(CardWithHints).init(allocator);
-
-            tmp.appendSlice(game.players.items[i].hand.items);
-            players.append(Player{ .hand = tmp });
+            players.append(Player.init(allocator, game.players.items[i].hand.items)) catch unreachable;
         }
 
-        for (players[game.current_player]) |_, k| {
-            players[game.current_player][k].card = Card{ .color = Color.unknown, .value = Value.unknown };
+        for (players.items) |p| {
+            p.to_string(std.io.getStdOut().writer());
         }
+
+        for (players.items[game.current_player].hand.items) |_, k| {
+            players.items[game.current_player].hand.items[k].card = Card{ .color = Color.unknown, .value = Value.unknown };
+        }
+        var initial_deck = ArrayList(Card).init(allocator);
+        initial_deck.insertSlice(0, game.initial_deck.items) catch unreachable;
 
         return Self{
             .players = players,
-            .initial_deck = game.initial_deck,
+            .initial_deck = initial_deck,
             .discard_pile = discard_pile,
             .hanabi_piles = hanabi_piles,
             .current_player = game.current_player,
@@ -148,7 +164,7 @@ const CurrentPlayerView = struct {
             .rounds_left = game.rounds_left,
         };
     }
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: Self) void {
         for (self.players.items) |p| {
             p.deinit();
         }
@@ -163,30 +179,41 @@ const CurrentPlayerView = struct {
 
 pub const Game = struct {
     const Self = @This();
-    current_player: u64, //8
-    players: ArrayList(Player), //2 cards per card, so that is 2*5*4 = 40 bytes
-    discard_pile: ArrayList(Card), //50 = 50 bytes
-    hanabi_piles: [NUMBER_HANABI_PILES]ArrayList(Card), //50 bytes
-    initial_deck: ArrayList(Card), //50 bytes
-    deck: ArrayList(Card), //50bytes
-    blue_tokens: u64, //8
-    black_tokens: u64, //8
-    game_is_over: bool, //1
-    rounds_left: u64, //8
-    //400 bytes should be more than enough for a game.
+    current_player: u64,
+    players: ArrayList(Player),
+    discard_pile: ArrayList(Card),
+    hanabi_piles: [NUMBER_HANABI_PILES]ArrayList(Card),
+    initial_deck: ArrayList(Card),
+    deck: ArrayList(Card),
+    blue_tokens: u64,
+    black_tokens: u64,
+    game_is_over: bool,
+    rounds_left: u64,
 
     // Allocates a clone
     pub fn clone(self: Self, allocator: Allocator) Self {
+        var players = ArrayList(Player).init(allocator);
+        for (self.players.items) |p| {
+            players.append(Player.init(allocator, p.hand.items)) catch unreachable;
+        }
         var hanabi_piles: [NUMBER_HANABI_PILES]ArrayList(Card) = undefined;
         for (hanabi_piles) |_, i| {
-            hanabi_piles[i] = ArrayList(Card).init(allocator).insertSlice(allocator, self.hanabi_piles[i]);
+            hanabi_piles[i] = ArrayList(Card).init(allocator);
+            hanabi_piles[i].insertSlice(0, self.hanabi_piles[i].items) catch unreachable;
         }
+        var initial_deck = ArrayList(Card).init(allocator);
+        initial_deck.insertSlice(0, self.initial_deck.items) catch unreachable;
+        var deck = ArrayList(Card).init(allocator);
+        deck.insertSlice(0, self.deck.items) catch unreachable;
+        var discard_pile = ArrayList(Card).init(allocator);
+        discard_pile.insertSlice(0, self.discard_pile.items) catch unreachable;
+
         return Self{
-            .players = self.players,
+            .players = players,
             .current_player = self.current_player,
-            .deck = ArrayList(Card).init(allocator).insertSlice(0, self.deck.items),
-            .initial_deck = ArrayList(Card).init(allocator).insertSlice(0, self.initial_deck.items),
-            .discard_pile = ArrayList(Card).init(allocator).insertSlice(0, self.discard_pile.items),
+            .deck = deck,
+            .initial_deck = initial_deck,
+            .discard_pile = discard_pile,
             .hanabi_piles = hanabi_piles,
             .blue_tokens = self.blue_tokens,
             .black_tokens = self.black_tokens,
@@ -194,6 +221,78 @@ pub const Game = struct {
             .rounds_left = self.rounds_left,
         };
     }
+
+    pub fn initMiniHanabi(allocator: Allocator, number_of_players: u3, seed: [32]u8) Self {
+        const countarr = [_]u64{ 2, 1, 1, 0, 0 };
+        const values = [_]Value{ Value.one, Value.two, Value.three, Value.four, Value.five };
+        const colors = [_]Color{ Color.red, Color.blue, Color.green, Color.yellow, Color.white };
+
+        var deck = ArrayList(Card).init(allocator);
+        var i: u64 = 0;
+        while (i < countarr.len) : (i += 1) {
+            for (colors) |color| {
+                var k: u64 = 0;
+                while (k < countarr[i]) : (k += 1) {
+                    _ = deck.append(Card{ .value = values[i], .color = color }) catch unreachable;
+                }
+            }
+        }
+
+        var generator = std.rand.DefaultCsprng.init(seed);
+        var prng = generator.random();
+
+        i = 0;
+        while (i < deck.items.len) : (i += 1) {
+            var swapi = prng.uintLessThan(u64, deck.items.len);
+            var tmp = deck.items[i];
+            deck.items[i] = deck.items[swapi];
+            deck.items[swapi] = tmp;
+        }
+
+        const initial_deck = deck.clone() catch unreachable;
+        var players = ArrayList(Player).init(allocator);
+        i = 0;
+        while (i < number_of_players) : (i += 1) {
+            var tmp = ArrayList(CardWithHints).init(allocator);
+            if (number_of_players < 4) {
+                var k: u64 = 0;
+                const draw_if_less_than_4_players = 3;
+                while (k < draw_if_less_than_4_players) : (k += 1) {
+                    _ = tmp.append(CardWithHints{ .card = deck.popOrNull().?, .hints = Card{ .color = Color.unknown, .value = Value.unknown } }) catch unreachable;
+                }
+            } else {
+                var k: u64 = 0;
+                const draw_if_more_than_3_players = 4;
+                while (k < draw_if_more_than_3_players) : (k += 1) {
+                    _ = tmp.append(CardWithHints{ .card = deck.popOrNull().?, .hints = Card{ .color = Color.unknown, .value = Value.unknown } }) catch unreachable;
+                }
+            }
+            _ = players.append(Player{ .hand = tmp }) catch unreachable;
+        }
+
+        var discard_pile = ArrayList(Card).init(allocator);
+
+        var hanabi_piles: [NUMBER_HANABI_PILES]ArrayList(Card) = undefined;
+        i = 0;
+        while (i < NUMBER_HANABI_PILES) : (i += 1) {
+            var tmp = ArrayList(Card).init(allocator);
+            hanabi_piles[i] = tmp;
+        }
+
+        return Self{
+            .players = players,
+            .current_player = 0,
+            .deck = deck,
+            .initial_deck = initial_deck,
+            .discard_pile = discard_pile,
+            .hanabi_piles = hanabi_piles,
+            .blue_tokens = INITIAL_BLUE_TOKENS,
+            .black_tokens = INITIAL_BLACK_TOKENS,
+            .game_is_over = false,
+            .rounds_left = std.math.maxInt(u64),
+        };
+    }
+
     pub fn init(allocator: Allocator, number_of_players: u3, seed: [32]u8) Self {
         const countarr = [_]u64{ 3, 2, 2, 2, 1 };
         const values = [_]Value{ Value.one, Value.two, Value.three, Value.four, Value.five };
@@ -209,9 +308,7 @@ pub const Game = struct {
                 }
             }
         }
-        // std.debug.print("\n{any}\n", .{deck});
 
-        // seed[0] = 13;
         var generator = std.rand.DefaultCsprng.init(seed);
         var prng = generator.random();
 
@@ -222,7 +319,6 @@ pub const Game = struct {
             deck.items[i] = deck.items[swapi];
             deck.items[swapi] = tmp;
         }
-        // std.debug.print("\n{any}\n", .{deck});
 
         const initial_deck = deck.clone() catch unreachable;
         var players = ArrayList(Player).init(allocator);
@@ -265,7 +361,7 @@ pub const Game = struct {
             .rounds_left = std.math.maxInt(u64),
         };
     }
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: Self) void {
         for (self.players.items) |p| {
             p.deinit();
         }
@@ -289,7 +385,7 @@ pub const Game = struct {
         return CurrentPlayerView.init(allocator, self);
     }
 
-    fn next_turn(self: *Self) u64 {
+    pub fn next_turn(self: *Self) u64 {
         self.current_player = (self.current_player + 1) % self.players.items.len;
         return self.current_player;
     }
@@ -386,6 +482,13 @@ pub const Game = struct {
         std.debug.assert(did_hint);
     }
 
+    pub fn to_string_alloc(self: Self, allocator: Allocator) ArrayList(u8) {
+        var arr = ArrayList(u8).init(allocator);
+        var writer = arr.writer();
+        self.to_string(writer);
+        return arr;
+    }
+
     pub fn to_string(self: Self, writer: anytype) void {
         var i: u64 = 0;
         if (self.rounds_left != std.math.maxInt(u64)) {
@@ -418,11 +521,12 @@ pub const Game = struct {
         }
         _ = writer.write("\n") catch unreachable;
     }
+
     pub fn simulate(self: *Self, allocator: Allocator) void {
         while (!self.game_is_over) {
             var arena = std.heap.ArenaAllocator.init(allocator);
             defer arena.deinit();
-            // var arr = ArrayList(u8).init(arena.allocator());
+
             const stdout = std.io.getStdOut();
             const stdin = std.io.getStdIn();
             var buffer: [100]u8 = undefined;
@@ -432,7 +536,7 @@ pub const Game = struct {
             while (true) {
                 _ = stdout.writer().writeAll(clear) catch unreachable;
                 self.to_string(writer);
-                // std.debug.print("{s}", .{arr.items});
+
                 stdout.writer().print("0:play\n", .{}) catch unreachable;
                 stdout.writer().print("1:discard\n", .{}) catch unreachable;
                 stdout.writer().print("2:hint color\n", .{}) catch unreachable;
@@ -475,8 +579,6 @@ pub const Game = struct {
     }
 
     fn simulate_play(self: *Self) void {
-
-        // fn play(self: *Self, index: u64) void {
         const stdout = std.io.getStdOut();
         const stdin = std.io.getStdIn();
         var buffer: [100]u8 = undefined;
@@ -487,8 +589,6 @@ pub const Game = struct {
     }
 
     fn simulate_discard(self: *Self) void {
-
-        // fn discard(self: *Self, index: u64) void {
         const stdout = std.io.getStdOut();
         const stdin = std.io.getStdIn();
         var buffer: [100]u8 = undefined;
@@ -505,7 +605,7 @@ pub const Game = struct {
 
         while (true) {
             stdout.writer().print("Select a player index:", .{}) catch unreachable;
-            // std.debug.print("\nShould be 5:{}\n", .{self.players.items.len});
+
             var selected_player = readNumber(stdin.reader(), &buffer, "\nInvalid Input,try selecting player index again:", self.players.items.len);
             if (selected_player == self.current_player) {
                 stdout.writer().print("\nCannot give a hint to yourself! Try again:", .{}) catch unreachable;
@@ -551,7 +651,6 @@ pub const Game = struct {
                 }
             }
 
-            // pub fn hint_color(self: *Self, color: Color, player: u64) void
             self.hint_value(chosen_value, selected_player);
             return;
         }
@@ -564,7 +663,7 @@ pub const Game = struct {
 
         while (true) {
             stdout.writer().print("Select a player index:", .{}) catch unreachable;
-            // std.debug.print("\nShould be 5:{}\n", .{self.players.items.len});
+
             var selected_player = readNumber(stdin.reader(), &buffer, "\nInvalid Input,try selecting player index again:", self.players.items.len);
             if (selected_player == self.current_player) {
                 stdout.writer().print("Cannot give a hint to yourself! Try again\n", .{}) catch unreachable;
@@ -587,7 +686,7 @@ pub const Game = struct {
                 stdout.writer().print("There are no cards in that players hand, try again\n", .{}) catch unreachable;
                 continue;
             }
-            // A color will always be chosen, so no worry
+
             var i: u64 = 0;
             for (colorChoices) |maybe_color, k| {
                 if (maybe_color) {
@@ -611,14 +710,12 @@ pub const Game = struct {
                 }
             }
 
-            // pub fn hint_color(self: *Self, color: Color, player: u64) void
             self.hint_color(chosen_color, selected_player);
             return;
         }
     }
 
     fn readNumber(reader: anytype, buffer: []u8, try_again_message: []const u8, lowerThan: u64) u64 {
-        // _ = reader;
         while (true) {
             var buf = nextLine(reader, buffer) catch {
                 _ = std.io.getStdOut().writer().write(try_again_message) catch unreachable;
@@ -670,7 +767,6 @@ test "create game and print a player hand" {
     var arr = ArrayList(u8).init(arena.allocator());
     var writer = arr.writer();
     game.players.items[0].to_string_no_hints(writer);
-    std.debug.print("=========\n{s}\n========", .{arr.items});
 }
 
 test "print game state" {
@@ -681,5 +777,4 @@ test "print game state" {
     var arr = ArrayList(u8).init(arena.allocator());
     var writer = arr.writer();
     game.to_string(writer);
-    std.debug.print("{s}", .{arr.items});
 }

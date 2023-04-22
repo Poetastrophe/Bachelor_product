@@ -1,7 +1,16 @@
+[ ] - Clean up code comments
+[ ] - Time different methods based on global boolean.
+	Format is:
+	time.method.submethod = timespent
+	
+	that way it is easy to grep
 
+[ ] - Write  
+There are two augmenting strategies to the game, use Cox's recommendation strategy in order to simplify the knowledge base.
+Or use use the information strategy to simplify knowledge base.
 
 # Todo
-[ ] - Decide on some strategies - write them here first
+[X] - Decide on some strategies - write them here first
 Jeg kan tage Cox informations strategien og skrive en rapport at en udvidelse dertil vil være at jeg også laver disse partition tables, og ydermere kan jeg komme med meget nøjagtige estimater for den mest "playable" hånd, idet jeg generere alle muligheder.
 
 I think that this strategy would suffice (from the Cox article regarding information strategy):
@@ -119,7 +128,7 @@ does not :)
 		[X] - Make layer 2
 			[X] - Take the heapsalgorithm and make it more general and do not use all this comptime stuff. Make it take a buffer and integer of sorts it will probably be just as fast :)
 
-[ ] - Make mini hanabi
+[X] - Make mini hanabi
 	Motivation: without a mini version it will be hard to simulate strategies, so a mini version would be nice.
 	Limitations: Should play nicely with existing methods and should not make it much harder to design.
 	How mini is mini-hanabi?
@@ -149,7 +158,8 @@ does not :)
 	results in the empty set, then we know that the given scenario for A is
 	not possible and we remove that as well :)
 	
-	[ ] - Think about how to incorporate hand position, because given a set for the hand, and some hints about the hand, it should be able to deduce some things and playing a partially hinted hand, should think about the consequences of doing this.
+	[X] - Think about how to incorporate hand position, because given a set for the hand, and some hints about the hand, it should be able to deduce some things and playing a partially hinted hand, should think about the consequences of doing this.
+		Heapsalgorithm and see if it matches :)
 
 
 [X] - Run a simulation of the first round and check if it is feasible to do anything you want to do :)
