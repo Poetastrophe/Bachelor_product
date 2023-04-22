@@ -309,18 +309,12 @@ pub const Agent = struct {
                     var k: usize = 0;
                     while (k < handsize) : (k += 1) {
                         const kth_card = fixed_scenario.items[perm[k]];
-                        if (@enumToInt(self.hand.items[k].card.value) == 0) {
-                            std.debug.print("should be 1:{any}\n", .{kth_card});
-                        }
 
                         // Decide whether it is playable
                         const last_index = self.view.hanabi_piles[@enumToInt(kth_card.color)].items.len;
                         if (last_index == @enumToInt(kth_card.value)) {
                             self.hand.items[k].is_playable = true;
                         } else {
-                            if (@enumToInt(self.hand.items[k].card.value) == 0) {
-                                std.debug.print("Setting unplayable based on{}!={}\n", .{ @enumToInt(self.hand.items[k].card.value), @enumToInt(kth_card.value) });
-                            }
                             self.hand.items[k].is_unplayable = true;
                         }
 
@@ -422,7 +416,7 @@ pub const Agent = struct {
     pub fn make_move(self: Self, game: *Game) void {
         // 1. Play the playable card with lowest index.
         // It has to be beyond doubt that this card can be played
-        std.debug.print("player {}, making a move...", .{self.player_id});
+        //std.debug.print("player {}, making a move...", .{self.player_id});
         var maybe_index_to_play: ?usize = null;
         for (self.hand.items) |cws, i| {
             if (cws.is_playable and !cws.is_unplayable) {
@@ -432,7 +426,7 @@ pub const Agent = struct {
         }
 
         if (maybe_index_to_play) |index_to_play| {
-            std.debug.print("1.playing card\n", .{});
+            //std.debug.print("1.playing card\n", .{});
             game.play(index_to_play);
             return;
         }
@@ -446,7 +440,7 @@ pub const Agent = struct {
                 }
             }
             if (maybe_index_to_play) |index_to_play| {
-                std.debug.print("2.discarding dead card\n", .{});
+                //std.debug.print("2.discarding dead card\n", .{});
                 game.discard(index_to_play);
                 return;
             }
@@ -455,7 +449,7 @@ pub const Agent = struct {
         // 3. If there are hint tokens available, give a hint.
         if (self.view.blue_tokens > 0) {
             if (self.hintRandomThatIsNotAlreadyKnown(game)) {
-                std.debug.print("3.Giving hint\n", .{});
+                //std.debug.print("3.Giving hint\n", .{});
                 return;
             }
         }
@@ -469,7 +463,7 @@ pub const Agent = struct {
                 }
             }
             if (maybe_index_to_play) |index_to_play| {
-                std.debug.print("4.Discarding card\n", .{});
+                //std.debug.print("4.Discarding card\n", .{});
                 game.discard(index_to_play);
                 return;
             }
@@ -484,7 +478,7 @@ pub const Agent = struct {
                 }
             }
             if (maybe_index_to_play) |index_to_play| {
-                std.debug.print("5.Discarding two hand duplicate card\n", .{});
+                //std.debug.print("5.Discarding two hand duplicate card\n", .{});
                 game.discard(index_to_play);
                 return;
             }
@@ -499,7 +493,7 @@ pub const Agent = struct {
                 }
             }
             if (maybe_index_to_play) |index_to_play| {
-                std.debug.print("6.Discarding dispensible\n", .{});
+                //std.debug.print("6.Discarding dispensible\n", .{});
                 game.discard(index_to_play);
                 return;
             }
@@ -508,13 +502,13 @@ pub const Agent = struct {
         // 7. Discard card C1.
         if (self.view.blue_tokens != Hanabi_game.INITIAL_BLUE_TOKENS) {
             // TODO 1:Should I skip turn if there are no cards to play?
-            std.debug.print("7.Discarding C1\n", .{});
+            //std.debug.print("7.Discarding C1\n", .{});
             game.discard(0);
             return;
         }
 
         // Just for good measure, I can also play
-        std.debug.print("8.Playing C1\n", .{});
+        //std.debug.print("8.Playing C1\n", .{});
         game.play(0);
         return;
     }
@@ -583,17 +577,17 @@ test "Three wise men simulation :)" {
 
         var myNewKripkeStructure = KripkeStructure.init(allocator, hatpool, CardSet.emptySet(), CardSet.emptySet(), wise_men[0..2], 1, 2);
         defer myNewKripkeStructure.deinit();
-        std.debug.print("\n", .{});
-        for (myNewKripkeStructure.worlds.items) |fixed_scenario, i| {
-            for (fixed_scenario.items) |player, pi| {
-                for (player.items) |imagined, ii| {
-                    std.debug.print("given fixed scenario:{}, player:{}, can imagine possibility number: {} that:{any}\n", .{ i, pi, ii, imagined.hand.card_encoding });
-                }
-            }
-        }
+        //std.debug.print("\n", .{});
+        //for (myNewKripkeStructure.worlds.items) |fixed_scenario, i| {
+        //    for (fixed_scenario.items) |player, pi| {
+        //        for (player.items) |imagined, ii| {
+        //            //std.debug.print("given fixed scenario:{}, player:{}, can imagine possibility number: {} that:{any}\n", .{ i, pi, ii, imagined.hand.card_encoding });
+        //        }
+        //    }
+        //}
     }
     {
-        std.debug.print("\n================ wisemen2 =================\n", .{});
+        //std.debug.print("\n================ wisemen2 =================\n", .{});
         // RWW from 0 POV
         // So 0 sees _WW
         var wise_men2 = [_]CardSet{CardSet.emptySet()} ** 3;
@@ -603,13 +597,13 @@ test "Three wise men simulation :)" {
 
         var myNewKripkeStructure2 = KripkeStructure.init(allocator, hatpool, CardSet.emptySet(), CardSet.emptySet(), wise_men2[1..3], 1, 0);
         defer myNewKripkeStructure2.deinit();
-        std.debug.print("\n", .{});
-        for (myNewKripkeStructure2.worlds.items) |fixed_scenario, i| {
-            for (fixed_scenario.items) |player, pi| {
-                for (player.items) |imagined, ii| {
-                    std.debug.print("given fixed scenario:{}, player:{}, can imagine possibility number: {} that:{any}\n", .{ i, pi, ii, imagined.hand.card_encoding });
-                }
-            }
-        }
+        //std.debug.print("\n", .{});
+        //for (myNewKripkeStructure2.worlds.items) |fixed_scenario, i| {
+        //    for (fixed_scenario.items) |player, pi| {
+        //        for (player.items) |imagined, ii| {
+        //            //std.debug.print("given fixed scenario:{}, player:{}, can imagine possibility number: {} that:{any}\n", .{ i, pi, ii, imagined.hand.card_encoding });
+        //        }
+        //    }
+        //}
     }
 }

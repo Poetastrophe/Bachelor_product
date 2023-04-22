@@ -148,10 +148,10 @@ fn testBigTimeCombinations() void {
     var arr2 = distinct_combinations(allCards.items, k, 25, std.testing.allocator);
     defer arr2.deinit();
 
-    std.debug.print("\nlength:{}\n", .{arr2.items.len});
+    //std.debug.print("\nlength:{}\n", .{arr2.items.len});
 }
 pub fn initial_state_test() void {
-    var timer = try std.time.Timer.start();
+    // var timer = try std.time.Timer.start();
 
     const k = 4;
     const cards = [_]u64{ 1, 2, 3, 4, 5 };
@@ -172,7 +172,7 @@ pub fn initial_state_test() void {
     var arr2 = distinct_combinations(allCards.items, k, 25, arena.allocator());
     defer arr2.deinit();
 
-    std.debug.print("\n\nnanoseconds:{}\n", .{timer.read()});
+    //std.debug.print("\n\nnanoseconds:{}\n", .{timer.read()});
 }
 
 pub const CardSet = struct {
@@ -303,28 +303,30 @@ pub const CardSet = struct {
 
 test "CardSet setDifference" {
     var allcards = CardSet.getWholeDeckSet();
-    std.debug.print("\nallcards:\n{any}\n", .{allcards});
+    //std.debug.print("\nallcards:\n{any}\n", .{allcards});
     var someCards = CardSet{ .card_encoding = [_]u2{ 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } };
     var remaining = allcards.setDifference(someCards);
+    _ = remaining;
 
-    std.debug.print("\nrem:\n{any}\n", .{remaining});
+    //std.debug.print("\nrem:\n{any}\n", .{remaining});
 
-    std.debug.print("\n\nsizeofu2:{}\n", .{@sizeOf(@TypeOf(someCards.card_encoding))});
-    std.debug.print("\n\nsizeofu32:{}\n", .{@sizeOf([25]u8)});
+    //std.debug.print("\n\nsizeofu2:{}\n", .{@sizeOf(@TypeOf(someCards.card_encoding))});
+    //std.debug.print("\n\nsizeofu32:{}\n", .{@sizeOf([25]u8)});
 }
 
 test "CardEncoding combinations " {
     var allcards = CardSet.getWholeDeckSet();
     var timer = try std.time.Timer.start();
+    _ = timer;
     var res = distinct_combinations_assuming_encoding(allcards.card_encoding, 6, std.testing.allocator);
     defer res.deinit();
 
-    std.debug.print("\n\nnanosecondsmorecompact:{}\n", .{timer.read()});
+    //std.debug.print("\n\nnanosecondsmorecompact:{}\n", .{timer.read()});
 }
 
 test "combinations big time" {
-    var timer = try std.time.Timer.start();
+    // var timer = try std.time.Timer.start();
     testBigTimeCombinations();
 
-    std.debug.print("\n\nnanoseconds:{}\n", .{timer.read()});
+    //std.debug.print("\n\nnanoseconds:{}\n", .{timer.read()});
 }

@@ -82,9 +82,6 @@ pub const SimulationRunner = struct {
                 }
             }
         }
-        std.debug.print("\nnumber of bytes for kripkestructure is:{}\n", .{totalbytesize});
-
-        std.debug.print("\n\n Initial time and space totalSpace in gigabytes:{}\n", .{@intToFloat(f128, totalbytesize) / 1E9});
 
         _ = self.game.next_turn();
 
