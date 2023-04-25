@@ -115,6 +115,29 @@ pub const KripkeStructure = struct {
             timer = std.time.Timer.start() catch unreachable;
             start = timer.read();
         }
+        if (globals_test.Agent_other_has_some_matching_configuration_number_of_unique_hands) {
+            var player_index: usize = 0;
+            while (player_index < players.len) : (player_index += 1) {
+                if (player_index == pov_player_index) {
+                    std.debug.print("Agent.other_has_some_matching_configuration.number_of_unique_hands.worlds_that_needs_to_be_checked:{}\n", .{self.worlds.items.len});
+                } else {
+                    var counter: u64 = 0;
+                    for (self.worlds.items) |fw| {
+                        counter += fw.items[player_index].items.len;
+                    }
+                    std.debug.print("Agent.other_has_some_matching_configuration.number_of_unique_hands.worlds_that_needs_to_be_checked:{}\n", .{counter});
+                }
+                var player_hand_raw = players[player_index].hand;
+
+                var player_hinthand = ArrayList(Card).initCapacity(tmp_calc_allocator, MAX_HAND_SIZE) catch unreachable;
+                defer player_hinthand.deinit();
+
+                for (player_hand_raw.items) |card| {
+                    player_hinthand.append(card.hints) catch unreachable;
+                }
+                globals_test.countCombinations(player_hinthand.items);
+            }
+        }
 
         // 0. Remove pov player states
         var pov_player_hand_raw = players[pov_player_index].hand;
@@ -205,54 +228,6 @@ pub const KripkeStructure = struct {
     pub fn other_has_some_matching_configuration(hinthand: []Card, other: []Card) bool {
         if (hinthand.len != other.len) {
             return false;
-        }
-
-        if (globals_test.Agent_other_has_some_matching_configuration_check_unique_hands) {
-            var buffer: [1600]u8 = undefined;
-            var fba = std.heap.FixedBufferAllocator.init(&buffer);
-            const allocator = fba.allocator();
-
-            var permutation_iterator = PermutationIterator.HeapsAlgorithm.init(allocator, hinthand.len);
-            defer permutation_iterator.deinit();
-
-            var arr_hand_count = ArrayList(ArrayList(Card)).initCapacity(allocator, 25) catch unreachable;
-
-            while (permutation_iterator.next()) |perm| {
-                var someHand = ArrayList(Card).initCapacity(allocator, 6) catch unreachable;
-                for (hinthand) |_, i| {
-                    someHand.append(hinthand[perm[i]]) catch unreachable;
-                }
-                arr_hand_count.append(someHand) catch unreachable;
-            }
-
-            std.debug.print("Agent.other_has_some_matching_configuration.number_of_unique_hands B4 REMOVAL:{}\n", .{arr_hand_count.items.len});
-
-            var total = arr_hand_count.items.len;
-            var i: usize = 0;
-            while (i < total) : (i += 1) {
-                const n = arr_hand_count.items.len;
-                var j: usize = 0;
-                while (j < n) : (j += 1) {
-                    const tail = n - j - 1;
-                    if (tail == i) {
-                        break;
-                    }
-                    var is_identical = true;
-                    for (arr_hand_count.items[i].items) |_, k| {
-                        const card_A = arr_hand_count.items[i].items[k];
-                        const card_B = arr_hand_count.items[tail].items[k];
-                        if (card_A.color != card_B.color or card_A.value != card_B.value) {
-                            is_identical = false;
-                        }
-                    }
-
-                    if (is_identical) {
-                        _ = arr_hand_count.swapRemove(tail);
-                        total -= 1;
-                    }
-                }
-            }
-            std.debug.print("Agent.other_has_some_matching_configuration.number_of_unique_hands:{}\n", .{arr_hand_count.items.len});
         }
 
         var buffer: [100]u8 = undefined;
